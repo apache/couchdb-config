@@ -20,7 +20,12 @@
 -behaviour(gen_server).
 
 -export([start_link/1, stop/0]).
--export([all/0, get/1, get/2, get/3, set/3, set/4, delete/2, delete/3]).
+
+-export([all/0]).
+-export([get/1, get/2, get/3]).
+-export([set/3, set/4, set/5]).
+-export([delete/2, delete/3, delete/4]).
+
 -export([listen_for_changes/2]).
 -export([parse_ini_file/1]).
 
@@ -62,23 +67,34 @@ get(Section, Key, Default) ->
     end.
 
 set(Section, Key, Value) ->
-    ?MODULE:set(Section, Key, Value, true).
+    ?MODULE:set(Section, Key, Value, true, nil).
 
-set(Section, Key, Value, Persist) when is_binary(Section) and is_binary(Key)  ->
-    ?MODULE:set(binary_to_list(Section), binary_to_list(Key), Value, Persist);
-set(Section, Key, Value, Persist) ->
-    gen_server:call(?MODULE, {set, Section, Key, Value, Persist}).
+set(Section, Key, Value, Persist) when is_boolean(Persist) ->
+    ?MODULE:set(Section, Key, Value, Persist, nil);
+set(Section, Key, Value, Reason) ->
+    ?MODULE:set(Section, Key, Value, true, Reason).
+
+set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
+    ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
+set(Section, Key, Value, Persist, Reason) ->
+    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason}).
 
 
 delete(Section, Key) when is_binary(Section) and is_binary(Key) ->
     delete(binary_to_list(Section), binary_to_list(Key));
 delete(Section, Key) ->
-    delete(Section, Key, true).
+    delete(Section, Key, true, nil).
 
-delete(Section, Key, Persist) when is_binary(Section) and is_binary(Key) ->
-    delete(binary_to_list(Section), binary_to_list(Key), Persist);
-delete(Section, Key, Persist) ->
-    gen_server:call(?MODULE, {delete, Section, Key, Persist}).
+delete(Section, Key, Persist) when is_boolean(Persist) ->
+    delete(Section, Key, Persist, nil);
+delete(Section, Key, Reason) ->
+    delete(Section, Key, true, Reason).
+
+delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
+    delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
+delete(Section, Key, Persist, Reason) ->
+    gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
+
 
 listen_for_changes(CallbackModule, InitialState) ->
     config_listener:start(CallbackModule, InitialState).
@@ -103,9 +119,13 @@ terminate(_Reason, _State) ->
 handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
-handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
+handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
     true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-    twig:log(notice, "~p: [~s] ~s set to ~s", [?MODULE, Sec, Key, Val]),
+    twig:log(
+        notice,
+        "~p: [~s] ~s set to ~s for reason ~p",
+        [?MODULE, Sec, Key, Val, Reason]
+    ),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
@@ -117,9 +137,13 @@ handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
     Event = {config_change, Sec, Key, Val, Persist},
     gen_event:sync_notify(config_event, Event),
     {reply, ok, Config};
-handle_call({delete, Sec, Key, Persist}, _From, Config) ->
+handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
-    twig:log(notice, "~p: [~s] ~s deleted", [?MODULE, Sec, Key]),
+    twig:log(
+        notice,
+        "~p: [~s] ~s deleted for reason ~p",
+        [?MODULE, Sec, Key, Reason]
+    ),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
