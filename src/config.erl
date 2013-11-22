@@ -18,6 +18,7 @@
 
 -module(config).
 -behaviour(gen_server).
+-vsn(1).
 
 -export([start_link/1, stop/0]).
 
