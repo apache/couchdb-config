@@ -27,6 +27,10 @@
 -export([set/3, set/4, set/5]).
 -export([delete/2, delete/3, delete/4]).
 
+-export([get_integer/3, set_integer/3]).
+-export([get_float/3, set_float/3]).
+-export([get_boolean/3, set_boolean/3]).
+
 -export([listen_for_changes/2]).
 -export([parse_ini_file/1]).
 
@@ -49,10 +53,78 @@ stop() ->
 all() ->
     lists:sort(gen_server:call(?MODULE, all, infinity)).
 
+get_integer(Section, Key, Default) when is_integer(Default) ->
+    try
+        to_integer(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_integer(Section, Key, Value) when is_integer(Value) ->
+    set(Section, Key, integer_to_list(Value));
+set_integer(_, _, _) ->
+    error(badarg).
+
+to_integer(List) when is_list(List) ->
+    list_to_integer(List);
+to_integer(Int) when is_integer(Int) ->
+    Int;
+to_integer(Bin) when is_binary(Bin) ->
+    binary_to_list(list_to_integer(Bin)).
+
+get_float(Section, Key, Default) when is_float(Default) ->
+    try
+        to_float(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_float(Section, Key, Value) when is_float(Value) ->
+    set(Section, Key, float_to_list(Value));
+set_float(_, _, _) ->
+    error(badarg).
+
+to_float(List) when is_list(List) ->
+    list_to_float(List);
+to_float(Float) when is_float(Float) ->
+    Float;
+to_float(Int) when is_integer(Int) ->
+    list_to_float(integer_to_list(Int));
+to_float(Bin) when is_binary(Bin) ->
+    binary_to_list(list_to_float(Bin)).
+
+get_boolean(Section, Key, Default) when is_boolean(Default) ->
+    try
+        to_boolean(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_boolean(Section, Key, true) ->
+    set(Section, Key, "true");
+set_boolean(Section, Key, false) ->
+    set(Section, Key, "false");
+set_boolean(_, _, _) ->
+    error(badarg).
+
+to_boolean(List) when is_list(List) ->
+    case list_to_existing_atom(List) of
+        true  ->
+            true;
+        false ->
+            false;
+        _ ->
+            error(badarg)
+    end;
+to_boolean(Bool) when is_boolean(Bool) ->
+    Bool.
 
 get(Section) when is_binary(Section) ->
     ?MODULE:get(binary_to_list(Section));
-get(Section) ->
+get(Section) when is_list(Section) ->
     Matches = ets:match(?MODULE, {{Section, '$1'}, '$2'}),
     [{Key, Value} || [Key, Value] <- Matches].
 
@@ -61,7 +133,7 @@ get(Section, Key) ->
 
 get(Section, Key, Default) when is_binary(Section) and is_binary(Key) ->
     ?MODULE:get(binary_to_list(Section), binary_to_list(Key), Default);
-get(Section, Key, Default) ->
+get(Section, Key, Default) when is_list(Section), is_list(Key) ->
     case ets:lookup(?MODULE, {Section, Key}) of
         [] -> Default;
         [{_, Match}] -> Match
@@ -77,7 +149,8 @@ set(Section, Key, Value, Reason) ->
 
 set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
-set(Section, Key, Value, Persist, Reason) ->
+set(Section, Key, Value, Persist, Reason)
+        when is_list(Section), is_list(Key), is_list(Value) ->
     gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason}).
 
 
@@ -93,7 +166,7 @@ delete(Section, Key, Reason) ->
 
 delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
-delete(Section, Key, Persist, Reason) ->
+delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
     gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
 
 
