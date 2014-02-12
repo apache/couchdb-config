@@ -110,7 +110,7 @@ handle_call(all, _From, Config) ->
     {reply, Resp, Config};
 handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
     true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-    twig:log(notice, "~p: [~s] ~s set to ~s", [?MODULE, Sec, Key, Val]),
+    couch_log:log(notice, "~p: [~s] ~s set to ~s", [?MODULE, Sec, Key, Val]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
@@ -124,7 +124,7 @@ handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
     {reply, ok, Config};
 handle_call({delete, Sec, Key, Persist}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
-    twig:log(notice, "~p: [~s] ~s deleted", [?MODULE, Sec, Key]),
+    couch_log:log(notice, "~p: [~s] ~s deleted", [?MODULE, Sec, Key]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
@@ -167,7 +167,7 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info(Info, State) ->
-    twig:log(error, "config:handle_info Info: ~p~n", [Info]),
+    couch_log:log(error, "config:handle_info Info: ~p~n", [Info]),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -183,7 +183,7 @@ parse_ini_file(IniFile) ->
         {error, enoent} ->
             Fmt = "Couldn't find server configuration file ~s.",
             Msg = list_to_binary(io_lib:format(Fmt, [IniFilename])),
-            twig:log(error, "~s~n", [Msg]),
+            couch_log:log(error, "~s~n", [Msg]),
             throw({startup_error, Msg})
     end,
 
