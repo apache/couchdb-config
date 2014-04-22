@@ -18,9 +18,19 @@
 
 -module(config).
 -behaviour(gen_server).
+-vsn(1).
 
 -export([start_link/1, stop/0, reload/0]).
--export([all/0, get/1, get/2, get/3, set/3, set/4, delete/2, delete/3]).
+
+-export([all/0]).
+-export([get/1, get/2, get/3]).
+-export([set/3, set/4, set/5]).
+-export([delete/2, delete/3, delete/4]).
+
+-export([get_integer/3, set_integer/3]).
+-export([get_float/3, set_float/3]).
+-export([get_boolean/3, set_boolean/3]).
+
 -export([listen_for_changes/2]).
 -export([parse_ini_file/1]).
 
@@ -47,10 +57,78 @@ reload() ->
 all() ->
     lists:sort(gen_server:call(?MODULE, all, infinity)).
 
+get_integer(Section, Key, Default) when is_integer(Default) ->
+    try
+        to_integer(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_integer(Section, Key, Value) when is_integer(Value) ->
+    set(Section, Key, integer_to_list(Value));
+set_integer(_, _, _) ->
+    error(badarg).
+
+to_integer(List) when is_list(List) ->
+    list_to_integer(List);
+to_integer(Int) when is_integer(Int) ->
+    Int;
+to_integer(Bin) when is_binary(Bin) ->
+    binary_to_list(list_to_integer(Bin)).
+
+get_float(Section, Key, Default) when is_float(Default) ->
+    try
+        to_float(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_float(Section, Key, Value) when is_float(Value) ->
+    set(Section, Key, float_to_list(Value));
+set_float(_, _, _) ->
+    error(badarg).
+
+to_float(List) when is_list(List) ->
+    list_to_float(List);
+to_float(Float) when is_float(Float) ->
+    Float;
+to_float(Int) when is_integer(Int) ->
+    list_to_float(integer_to_list(Int));
+to_float(Bin) when is_binary(Bin) ->
+    binary_to_list(list_to_float(Bin)).
+
+get_boolean(Section, Key, Default) when is_boolean(Default) ->
+    try
+        to_boolean(get(Section, Key, Default))
+    catch
+        error:badarg ->
+            Default
+    end.
+
+set_boolean(Section, Key, true) ->
+    set(Section, Key, "true");
+set_boolean(Section, Key, false) ->
+    set(Section, Key, "false");
+set_boolean(_, _, _) ->
+    error(badarg).
+
+to_boolean(List) when is_list(List) ->
+    case list_to_existing_atom(List) of
+        true  ->
+            true;
+        false ->
+            false;
+        _ ->
+            error(badarg)
+    end;
+to_boolean(Bool) when is_boolean(Bool) ->
+    Bool.
 
 get(Section) when is_binary(Section) ->
     ?MODULE:get(binary_to_list(Section));
-get(Section) ->
+get(Section) when is_list(Section) ->
     Matches = ets:match(?MODULE, {{Section, '$1'}, '$2'}),
     [{Key, Value} || [Key, Value] <- Matches].
 
@@ -59,30 +137,42 @@ get(Section, Key) ->
 
 get(Section, Key, Default) when is_binary(Section) and is_binary(Key) ->
     ?MODULE:get(binary_to_list(Section), binary_to_list(Key), Default);
-get(Section, Key, Default) ->
+get(Section, Key, Default) when is_list(Section), is_list(Key) ->
     case ets:lookup(?MODULE, {Section, Key}) of
         [] -> Default;
         [{_, Match}] -> Match
     end.
 
 set(Section, Key, Value) ->
-    ?MODULE:set(Section, Key, Value, true).
+    ?MODULE:set(Section, Key, Value, true, nil).
 
-set(Section, Key, Value, Persist) when is_binary(Section) and is_binary(Key)  ->
-    ?MODULE:set(binary_to_list(Section), binary_to_list(Key), Value, Persist);
-set(Section, Key, Value, Persist) ->
-    gen_server:call(?MODULE, {set, Section, Key, Value, Persist}).
+set(Section, Key, Value, Persist) when is_boolean(Persist) ->
+    ?MODULE:set(Section, Key, Value, Persist, nil);
+set(Section, Key, Value, Reason) ->
+    ?MODULE:set(Section, Key, Value, true, Reason).
+
+set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
+    ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
+set(Section, Key, Value, Persist, Reason)
+        when is_list(Section), is_list(Key), is_list(Value) ->
+    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason}).
 
 
 delete(Section, Key) when is_binary(Section) and is_binary(Key) ->
     delete(binary_to_list(Section), binary_to_list(Key));
 delete(Section, Key) ->
-    delete(Section, Key, true).
+    delete(Section, Key, true, nil).
 
-delete(Section, Key, Persist) when is_binary(Section) and is_binary(Key) ->
-    delete(binary_to_list(Section), binary_to_list(Key), Persist);
-delete(Section, Key, Persist) ->
-    gen_server:call(?MODULE, {delete, Section, Key, Persist}).
+delete(Section, Key, Persist) when is_boolean(Persist) ->
+    delete(Section, Key, Persist, nil);
+delete(Section, Key, Reason) ->
+    delete(Section, Key, true, Reason).
+
+delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
+    delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
+delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
+    gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
+
 
 listen_for_changes(CallbackModule, InitialState) ->
     config_listener:start(CallbackModule, InitialState).
@@ -108,9 +198,10 @@ terminate(_Reason, _State) ->
 handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
-handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
+handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
     true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-    couch_log:notice("~p: [~s] ~s set to ~s", [?MODULE, Sec, Key, Val]),
+    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
+        [?MODULE, Sec, Key, Val, Reason]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
@@ -122,9 +213,10 @@ handle_call({set, Sec, Key, Val, Persist}, _From, Config) ->
     Event = {config_change, Sec, Key, Val, Persist},
     gen_event:sync_notify(config_event, Event),
     {reply, ok, Config};
-handle_call({delete, Sec, Key, Persist}, _From, Config) ->
+handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
-    couch_log:notice("~p: [~s] ~s deleted", [?MODULE, Sec, Key]),
+    couch_log:notice("~p: [~s] ~s deleted for reason ~p",
+        [?MODULE, Sec, Key, Reason]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
