@@ -23,6 +23,7 @@
 -export([start_link/1, stop/0, reload/0]).
 
 -export([all/0]).
+-export([all_list/0, section_list/1]).
 -export([get/1, get/2, get/3]).
 -export([set/3, set/4, set/5]).
 -export([delete/2, delete/3, delete/4]).
@@ -36,6 +37,8 @@
 
 -export([init/1, terminate/2, code_change/3]).
 -export([handle_call/3, handle_cast/2, handle_info/2]).
+
+-export([couch_dispatch/0]).
 
 -record(config, {
     notify_funs=[],
@@ -56,6 +59,23 @@ reload() ->
 
 all() ->
     lists:sort(gen_server:call(?MODULE, all, infinity)).
+
+all_list() ->
+    Grouped = lists:foldl(fun({{Section, Key}, Value}, Acc) ->
+        case dict:is_key(Section, Acc) of
+        true ->
+            dict:append(Section, {list_to_binary(Key), list_to_binary(Value)}, Acc);
+        false ->
+            dict:store(Section, [{list_to_binary(Key), list_to_binary(Value)}], Acc)
+        end
+    end, dict:new(), config:all()),
+    dict:fold(fun(Section, Values, Acc) ->
+        [{list_to_binary(Section), {Values}} | Acc]
+    end, [], Grouped).
+
+section_list(Section) ->
+    [{list_to_binary(Key), list_to_binary(Value)}
+        || {Key, Value} <- config:get(Section)].
 
 get_integer(Section, Key, Default) when is_integer(Default) ->
     try
@@ -347,3 +367,6 @@ debug_config() ->
             ok
     end.
 
+
+couch_dispatch() ->
+    {["_config", '*'], config_httpr, []}.
