@@ -292,9 +292,9 @@ should_delete_binary_option() ->
 
 should_ensure_in_defaults(_, _) ->
     ?_test(begin
-        ?assertEqual("100",
+        ?assertEqual("500",
                      config:get("couchdb", "max_dbs_open")),
-        ?assertEqual("5984",
+        ?assertEqual("5986",
                      config:get("httpd", "port")),
         ?assertEqual(undefined,
                      config:get("fizbang", "unicode"))
@@ -321,7 +321,7 @@ should_win_last_in_chain(_, _) ->
 
 should_write_changes(_, _) ->
     ?_test(begin
-        ?assertEqual("5984",
+        ?assertEqual("5986",
                      config:get("httpd", "port")),
         ?assertEqual(ok,
                      config:set("httpd", "port", "8080")),
@@ -335,7 +335,7 @@ should_write_changes(_, _) ->
 
 should_ensure_that_default_wasnt_modified(_, _) ->
     ?_test(begin
-        ?assertEqual("5984",
+        ?assertEqual("5986",
                      config:get("httpd", "port")),
         ?assertEqual("127.0.0.1",
                      config:get("httpd", "bind_address"))
