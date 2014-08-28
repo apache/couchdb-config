@@ -19,11 +19,13 @@
 -define(TIMEOUT, 1000).
 
 -define(CONFIG_DEFAULT,
-        filename:join([?BUILDDIR, "etc", "couchdb", "default_dev.ini"])).
+        filename:join([?BUILDDIR(), "etc", "couchdb", "default_dev.ini"])).
+-define(CONFIG_FIXTURESDIR,
+        filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
 -define(CONFIG_FIXTURE_1,
-        filename:join([?FIXTURESDIR, "couch_config_tests_1.ini"])).
+        filename:join([?CONFIG_FIXTURESDIR, "couch_config_tests_1.ini"])).
 -define(CONFIG_FIXTURE_2,
-        filename:join([?FIXTURESDIR, "couch_config_tests_2.ini"])).
+        filename:join([?CONFIG_FIXTURESDIR, "couch_config_tests_2.ini"])).
 -define(CONFIG_FIXTURE_TEMP,
     begin
         FileName = filename:join([?TEMPDIR, "couch_config_temp.ini"]),
