@@ -35,6 +35,8 @@
         FileName
     end).
 
+-define(DEPS, [couch_log, lager, goldrush, syntax_tools, compiler]).
+
 
 setup() ->
     setup(?CONFIG_CHAIN).
@@ -43,7 +45,8 @@ setup({temporary, Chain}) ->
 setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
-    {ok, Pid} = config:start_link(Chain),
+    [ok = application:start(App) || App <- lists:reverse(?DEPS)],
+    {ok, Pid} = test_util:start_config(Chain),
     Pid.
 
 setup_empty() ->
@@ -77,6 +80,7 @@ teardown({ConfigPid, SentinelPid}) ->
     end;
 teardown(Pid) ->
     config:stop(),
+    [ok = application:stop(App) || App <- ?DEPS],
     erlang:monitor(process, Pid),
     receive
         {'DOWN', _, _, Pid, _} ->
