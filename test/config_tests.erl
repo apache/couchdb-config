@@ -10,7 +10,7 @@
 % License for the specific language governing permissions and limitations under
 % the License.
 
--module(couch_config_tests).
+-module(config_tests).
 
 -include_lib("couch/include/couch_eunit.hrl").
 -include_lib("couch/include/couch_db.hrl").
@@ -23,12 +23,12 @@
 -define(CONFIG_FIXTURESDIR,
         filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
 -define(CONFIG_FIXTURE_1,
-        filename:join([?CONFIG_FIXTURESDIR, "couch_config_tests_1.ini"])).
+        filename:join([?CONFIG_FIXTURESDIR, "config_tests_1.ini"])).
 -define(CONFIG_FIXTURE_2,
-        filename:join([?CONFIG_FIXTURESDIR, "couch_config_tests_2.ini"])).
+        filename:join([?CONFIG_FIXTURESDIR, "config_tests_2.ini"])).
 -define(CONFIG_FIXTURE_TEMP,
     begin
-        FileName = filename:join([?TEMPDIR, "couch_config_temp.ini"]),
+        FileName = filename:join([?TEMPDIR, "config_temp.ini"]),
         {ok, Fd} = file:open(FileName, write),
         ok = file:truncate(Fd),
         ok = file:close(Fd),
@@ -43,7 +43,7 @@ setup({temporary, Chain}) ->
 setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
-    {ok, Pid} = couch_config:start_link(Chain),
+    {ok, Pid} = config:start_link(Chain),
     Pid.
 
 setup_empty() ->
@@ -76,7 +76,7 @@ teardown({ConfigPid, SentinelPid}) ->
             end
     end;
 teardown(Pid) ->
-    couch_config:stop(),
+    config:stop(),
     erlang:monitor(process, Pid),
     receive
         {'DOWN', _, _, Pid, _} ->
@@ -88,13 +88,13 @@ teardown(_, Pid) ->
     teardown(Pid).
 
 
-couch_config_test_() ->
+config_test_() ->
     {
         "CouchDB config tests",
         [
-            couch_config_get_tests(),
-            couch_config_set_tests(),
-            couch_config_del_tests(),
+            config_get_tests(),
+            config_set_tests(),
+            config_del_tests(),
             config_override_tests(),
             config_persistent_changes_tests(),
             config_register_tests(),
@@ -102,7 +102,7 @@ couch_config_test_() ->
         ]
     }.
 
-couch_config_get_tests() ->
+config_get_tests() ->
     {
         "Config get tests",
         {
@@ -121,7 +121,7 @@ couch_config_get_tests() ->
         }
     }.
 
-couch_config_set_tests() ->
+config_set_tests() ->
     {
         "Config set tests",
         {
@@ -135,7 +135,7 @@ couch_config_set_tests() ->
         }
     }.
 
-couch_config_del_tests() ->
+config_del_tests() ->
     {
         "Config deletion tests",
         {
@@ -203,7 +203,7 @@ config_register_tests() ->
 
 config_no_files_tests() ->
     {
-        "Test couch_config with no files",
+        "Test config with no files",
         {
             foreach,
             fun setup_empty/0, fun teardown/1,
@@ -217,132 +217,132 @@ config_no_files_tests() ->
 
 
 should_load_all_configs() ->
-    ?_assert(length(couch_config:all()) > 0).
+    ?_assert(length(config:all()) > 0).
 
 should_locate_daemons_section() ->
-    ?_assert(length(couch_config:get("daemons")) > 0).
+    ?_assert(length(config:get("daemons")) > 0).
 
 should_locate_mrview_handler() ->
     ?_assertEqual("{couch_mrview_http, handle_view_req}",
-                  couch_config:get("httpd_design_handlers", "_view")).
+                  config:get("httpd_design_handlers", "_view")).
 
 should_return_undefined_atom_on_missed_section() ->
     ?_assertEqual(undefined,
-                  couch_config:get("foo", "bar")).
+                  config:get("foo", "bar")).
 
 should_return_undefined_atom_on_missed_option() ->
     ?_assertEqual(undefined,
-                  couch_config:get("httpd", "foo")).
+                  config:get("httpd", "foo")).
 
 should_return_custom_default_value_on_missed_option() ->
     ?_assertEqual("bar",
-                  couch_config:get("httpd", "foo", "bar")).
+                  config:get("httpd", "foo", "bar")).
 
 should_only_return_default_on_missed_option() ->
     ?_assertEqual("0",
-                  couch_config:get("httpd", "port", "bar")).
+                  config:get("httpd", "port", "bar")).
 
 should_get_binary_option() ->
     ?_assertEqual(<<"baz">>,
-                  couch_config:get(<<"foo">>, <<"bar">>, <<"baz">>)).
+                  config:get(<<"foo">>, <<"bar">>, <<"baz">>)).
 
 should_update_option() ->
     ?_assertEqual("severe",
         begin
-            ok = couch_config:set("log", "level", "severe", false),
-            couch_config:get("log", "level")
+            ok = config:set("log", "level", "severe", false),
+            config:get("log", "level")
         end).
 
 should_create_new_section() ->
     ?_assertEqual("bang",
         begin
-            undefined = couch_config:get("new_section", "bizzle"),
-            ok = couch_config:set("new_section", "bizzle", "bang", false),
-            couch_config:get("new_section", "bizzle")
+            undefined = config:get("new_section", "bizzle"),
+            ok = config:set("new_section", "bizzle", "bang", false),
+            config:get("new_section", "bizzle")
         end).
 
 should_set_binary_option() ->
     ?_assertEqual(<<"baz">>,
         begin
-            ok = couch_config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
-            couch_config:get(<<"foo">>, <<"bar">>)
+            ok = config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
+            config:get(<<"foo">>, <<"bar">>)
         end).
 
 should_return_undefined_atom_after_option_deletion() ->
     ?_assertEqual(undefined,
         begin
-            ok = couch_config:delete("log", "level", false),
-            couch_config:get("log", "level")
+            ok = config:delete("log", "level", false),
+            config:get("log", "level")
         end).
 
 should_be_ok_on_deleting_unknown_options() ->
-    ?_assertEqual(ok, couch_config:delete("zoo", "boo", false)).
+    ?_assertEqual(ok, config:delete("zoo", "boo", false)).
 
 should_delete_binary_option() ->
     ?_assertEqual(undefined,
         begin
-            ok = couch_config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
-            ok = couch_config:delete(<<"foo">>, <<"bar">>, false),
-            couch_config:get(<<"foo">>, <<"bar">>)
+            ok = config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
+            ok = config:delete(<<"foo">>, <<"bar">>, false),
+            config:get(<<"foo">>, <<"bar">>)
         end).
 
 should_ensure_in_defaults(_, _) ->
     ?_test(begin
         ?assertEqual("100",
-                     couch_config:get("couchdb", "max_dbs_open")),
+                     config:get("couchdb", "max_dbs_open")),
         ?assertEqual("5984",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual(undefined,
-                     couch_config:get("fizbang", "unicode"))
+                     config:get("fizbang", "unicode"))
     end).
 
 should_override_options(_, _) ->
     ?_test(begin
         ?assertEqual("10",
-                     couch_config:get("couchdb", "max_dbs_open")),
+                     config:get("couchdb", "max_dbs_open")),
         ?assertEqual("4895",
-                     couch_config:get("httpd", "port"))
+                     config:get("httpd", "port"))
     end).
 
 should_create_new_sections_on_override(_, _) ->
     ?_test(begin
         ?assertEqual("80",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual("normalized",
-                     couch_config:get("fizbang", "unicode"))
+                     config:get("fizbang", "unicode"))
     end).
 
 should_win_last_in_chain(_, _) ->
-    ?_assertEqual("80", couch_config:get("httpd", "port")).
+    ?_assertEqual("80", config:get("httpd", "port")).
 
 should_write_changes(_, _) ->
     ?_test(begin
         ?assertEqual("5984",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual(ok,
-                     couch_config:set("httpd", "port", "8080")),
+                     config:set("httpd", "port", "8080")),
         ?assertEqual("8080",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual(ok,
-                     couch_config:delete("httpd", "bind_address", "8080")),
+                     config:delete("httpd", "bind_address", "8080")),
         ?assertEqual(undefined,
-                     couch_config:get("httpd", "bind_address"))
+                     config:get("httpd", "bind_address"))
     end).
 
 should_ensure_that_default_wasnt_modified(_, _) ->
     ?_test(begin
         ?assertEqual("5984",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual("127.0.0.1",
-                     couch_config:get("httpd", "bind_address"))
+                     config:get("httpd", "bind_address"))
     end).
 
 should_ensure_that_written_to_last_config_in_chain(_, _) ->
     ?_test(begin
         ?assertEqual("8080",
-                     couch_config:get("httpd", "port")),
+                     config:get("httpd", "port")),
         ?assertEqual(undefined,
-                     couch_config:get("httpd", "bind_address"))
+                     config:get("httpd", "bind_address"))
     end).
 
 should_handle_port_changes({_, SentinelPid}) ->
@@ -350,16 +350,16 @@ should_handle_port_changes({_, SentinelPid}) ->
         MainProc = self(),
         Port = "8080",
 
-        couch_config:register(
+        config:register(
             fun("httpd", "port", Value) ->
-                % couch_config catches every error raised from handler
+                % config catches every error raised from handler
                 % so it's not possible to just assert on wrong value.
                 % We have to return the result as message
                 MainProc ! (Value =:= Port)
             end,
             SentinelPid
         ),
-        ok = couch_config:set("httpd", "port", Port, false),
+        ok = config:set("httpd", "port", Port, false),
 
         receive
             R ->
@@ -376,16 +376,16 @@ should_pass_persistent_flag({_, SentinelPid}) ->
     ?_assert(begin
         MainProc = self(),
 
-        couch_config:register(
+        config:register(
             fun("httpd", "port", _, Persist) ->
-                % couch_config catches every error raised from handler
+                % config catches every error raised from handler
                 % so it's not possible to just assert on wrong value.
                 % We have to return the result as message
                 MainProc ! Persist
             end,
             SentinelPid
         ),
-        ok = couch_config:set("httpd", "port", "8080", false),
+        ok = config:set("httpd", "port", "8080", false),
 
         receive
             false ->
@@ -399,13 +399,13 @@ should_not_trigger_handler_on_other_options_changes({_, SentinelPid}) ->
     ?_assert(begin
         MainProc = self(),
 
-        couch_config:register(
+        config:register(
             fun("httpd", "port", _) ->
                 MainProc ! ok
             end,
             SentinelPid
         ),
-        ok = couch_config:set("httpd", "bind_address", "0.0.0.0", false),
+        ok = config:set("httpd", "bind_address", "0.0.0.0", false),
 
         receive
             ok ->
@@ -419,7 +419,7 @@ should_not_trigger_handler_after_related_process_death({_, SentinelPid}) ->
     ?_assert(begin
         MainProc = self(),
 
-        couch_config:register(
+        config:register(
             fun("httpd", "port", _) ->
                 MainProc ! ok
             end,
@@ -437,7 +437,7 @@ should_not_trigger_handler_after_related_process_death({_, SentinelPid}) ->
                             {reason, "Timeout"}]})
         end,
 
-        ok = couch_config:set("httpd", "port", "12345", false),
+        ok = config:set("httpd", "port", "12345", false),
 
         receive
             ok ->
@@ -448,18 +448,18 @@ should_not_trigger_handler_after_related_process_death({_, SentinelPid}) ->
     end).
 
 should_ensure_that_no_ini_files_loaded() ->
-    ?_assertEqual(0, length(couch_config:all())).
+    ?_assertEqual(0, length(config:all())).
 
 should_create_non_persistent_option() ->
     ?_assertEqual("80",
         begin
-            ok = couch_config:set("httpd", "port", "80", false),
-            couch_config:get("httpd", "port")
+            ok = config:set("httpd", "port", "80", false),
+            config:get("httpd", "port")
         end).
 
 should_create_persistent_option() ->
     ?_assertEqual("127.0.0.1",
         begin
-            ok = couch_config:set("httpd", "bind_address", "127.0.0.1"),
-            couch_config:get("httpd", "bind_address")
+            ok = config:set("httpd", "bind_address", "127.0.0.1"),
+            config:get("httpd", "bind_address")
         end).
