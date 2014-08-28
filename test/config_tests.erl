@@ -97,12 +97,12 @@ config_test_() ->
         "CouchDB config tests",
         [
             config_get_tests(),
-            config_set_tests(),
-            config_del_tests(),
-            config_override_tests(),
-            config_persistent_changes_tests(),
-            config_register_tests(),
-            config_no_files_tests()
+            %% config_set_tests(),
+            %% config_del_tests(),
+            config_override_tests()
+            %% config_persistent_changes_tests(),
+            %% config_register_tests(),
+            %% config_no_files_tests()
         ]
     }.
 
