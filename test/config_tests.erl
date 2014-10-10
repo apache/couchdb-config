@@ -33,7 +33,7 @@
         FileName
     end).
 
--define(DEPS, [couch_log, couch_stats, folsom, lager, goldrush, syntax_tools, compiler]).
+-define(DEPS, [couch_stats, couch_log, folsom, lager, goldrush, syntax_tools, compiler]).
 
 
 setup() ->
