@@ -158,8 +158,11 @@ set(Section, Key, Value, Reason) ->
 
 set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
-set(Section, Key, Value, Persist, Reason)
-        when is_list(Section), is_list(Key), is_list(Value) ->
+set(Section, Key, Value, Persist, Reason) when is_boolean(Persist) ->
+    assert_string(Section),
+    assert_string(Key),
+    assert_string(Value),
+    if Reason == nil -> ok; true -> assert_string(Reason) end,
     gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason});
 set(_Sec, _Key, _Val, _Persist, _Reason) ->
     error(badarg).
@@ -177,9 +180,19 @@ delete(Section, Key, Reason) ->
 
 delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
-delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
+delete(Section, Key, Persist, Reason) when is_boolean(Persist) ->
+    assert_string(Section),
+    assert_string(Key),
+    if Reason == nil -> ok; true -> assert_string(Reason) end,
     gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
 
+assert_string(Term) ->
+    case io_lib:printable_list(Term) of
+        true ->
+            ok;
+        false ->
+            error(badarg)
+    end.
 
 listen_for_changes(CallbackModule, InitialState) ->
     gen_server:call(?MODULE, {listen_for_changes, CallbackModule, InitialState}).
