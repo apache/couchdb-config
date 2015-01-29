@@ -12,6 +12,10 @@
 
 -module(config_tests).
 
+-beahiour(config_listener).
+
+-export([handle_config_change/5, handle_config_terminate/3]).
+
 -include_lib("couch/include/couch_eunit.hrl").
 -include_lib("couch/include/couch_db.hrl").
 
@@ -50,6 +54,12 @@ setup(Chain) ->
 setup_empty() ->
     setup([]).
 
+setup_config_listener() ->
+    setup(),
+    {ok, Pid} = spawn_listener(),
+    config:listen_for_changes(?MODULE, {Pid, self(), []}),
+    {Pid, self()}.
+
 teardown({Pid, _}) ->
     stop_listener(Pid),
     [application:stop(App) || App <- ?DEPS];
@@ -58,6 +68,25 @@ teardown(_) ->
 
 teardown(_, _) ->
     [application:stop(App) || App <- ?DEPS].
+
+handle_config_change("remove_handler", _Key, _Value, _Persist, _State) ->
+    remove_handler;
+handle_config_change("update_state", Key, _Value, _Persist, {Listener, Subscriber, Items}) ->
+    NewState = {Listener, Subscriber, [Key|Items]},
+    ok = reply(NewState, NewState),
+    {ok, NewState};
+handle_config_change(Section, Key, Value, Persist, State) ->
+    ok = reply({{Section, Key, Value, Persist}, State}, State),
+    {ok, State}.
+handle_config_terminate(Self, Reason, State) ->
+    ok = reply({stop, Self, Reason, State}, State),
+    ok.
+
+reply(Reply, {Listener, _, _}) ->
+    call_sync(Listener, {set, Reply}).
+
+wait_reply(Listener) ->
+    call_sync(Listener, get).
 
 config_test_() ->
     {
@@ -68,7 +97,8 @@ config_test_() ->
             config_del_tests(),
             config_override_tests(),
             config_persistent_changes_tests(),
-            config_no_files_tests()
+            config_no_files_tests(),
+            config_listener_behaviour_tests()
         ]
     }.
 
@@ -170,6 +200,22 @@ config_no_files_tests() ->
         }
     }.
 
+config_listener_behaviour_tests() ->
+    {
+        "Test config_listener behaviour",
+        {
+            foreach,
+            fun setup_config_listener/0, fun teardown/1,
+            [
+                fun should_handle_value_change/1,
+                fun should_pass_correct_state_to_handle_config_change/1,
+                fun should_pass_correct_state_to_handle_config_terminate/1,
+                fun should_pass_subscriber_pid_to_handle_config_terminate/1,
+                fun should_not_call_handle_config_after_related_process_death/1,
+                fun should_remove_handler_when_requested/1
+            ]
+        }
+    }.
 
 should_load_all_configs() ->
     ?_assert(length(config:all()) > 0).
@@ -316,3 +362,92 @@ should_create_persistent_option() ->
             ok = config:set("httpd", "bind_address", "127.0.0.1"),
             config:get("httpd", "bind_address")
         end).
+
+should_handle_value_change({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({{"httpd", "port", "80", false}, _}, wait_reply(Pid))
+    end).
+should_pass_correct_state_to_handle_config_change({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({_, {Pid, _, []}}, wait_reply(Pid)),
+        ok = config:set("update_state", "foo", "any", false),
+        ?assertMatch({Pid, _, ["foo"]}, wait_reply(Pid))
+    end).
+should_pass_correct_state_to_handle_config_terminate({Pid, _}) ->
+    ?_test(begin
+        %% prepare some state
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({_, {Pid, _, []}}, wait_reply(Pid)),
+        ok = config:set("update_state", "foo", "any", false),
+        ?assertMatch({Pid, _, ["foo"]}, wait_reply(Pid)),
+
+        %% remove handler
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        {stop, Subscriber, _Reason, State} = Reply,
+        ?assert(is_pid(Subscriber)),
+        ?assertMatch({Pid, Subscriber, ["foo"]}, State)
+    end).
+should_pass_subscriber_pid_to_handle_config_terminate({Pid, SubscriberPid}) ->
+    ?_test(begin
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        {stop, Subscriber, _Reason, _State} = Reply,
+        ?assertMatch(SubscriberPid, Subscriber)
+    end).
+should_not_call_handle_config_after_related_process_death({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch(undefined, wait_reply(Pid))
+    end).
+should_remove_handler_when_requested({Pid, _}) ->
+    ?_test(begin
+        ?assertEqual(1, n_handlers()),
+
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        ?assertEqual(0, n_handlers())
+    end).
+
+call_sync(Listener, Msg) ->
+    Ref = make_ref(),
+    Listener ! {Ref, self(), Msg},
+    receive
+        {ok, Ref, Reply} -> Reply
+    after ?TIMEOUT ->
+        throw({error, {timeout, call_sync}})
+    end.
+
+spawn_listener() ->
+    {ok, spawn(fun() -> loop(undefined) end)}.
+
+stop_listener(Listener) ->
+    call_sync(Listener, stop).
+
+loop(State) ->
+    receive
+        {Ref, From, stop} ->
+            From ! {ok, Ref, ok},
+            ok;
+        {Ref, From, {set, Value}} ->
+            From ! {ok, Ref, ok},
+            loop(Value);
+        {Ref, From, get} ->
+            From ! {ok, Ref, State},
+            loop(undefined)
+    end.
+
+n_handlers() ->
+    length(gen_event:which_handlers(config_event)).

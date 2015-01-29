@@ -175,7 +175,7 @@ delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
 
 
 listen_for_changes(CallbackModule, InitialState) ->
-    config_listener:start(CallbackModule, InitialState).
+    gen_server:call(?MODULE, {listen_for_changes, CallbackModule, InitialState}).
 
 init(IniFiles) ->
     ets:new(?MODULE, [named_table, set, protected]),
@@ -250,14 +250,26 @@ handle_call(reload, _From, Config) ->
                 ets:delete(?MODULE, K)
         end
     end, nil, ?MODULE),
-    {reply, ok, Config}.
-
+    {reply, ok, Config};
+handle_call({listen_for_changes, CallbackModule, InitialState},
+        {Subscriber, _}, Config) ->
+    Reply = config_listener:start(CallbackModule, {Subscriber, InitialState}),
+    {reply, Reply, Config}.
 
 handle_cast(stop, State) ->
     {stop, normal, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+handle_info({gen_event_EXIT, {config_listener, Module}, shutdown}, State)  ->
+    couch_log:notice("config_listener(~p) stopped with reason: shutdown~n", [Module]),
+    {noreply, State};
+handle_info({gen_event_EXIT, {config_listener, Module}, normal}, State)  ->
+    couch_log:info("config_listener(~p) stopped with reason: shutdown~n", [Module]),
+    {noreply, State};
+handle_info({gen_event_EXIT, {config_listener, Module}, Reason}, State) ->
+    couch_log:error("config_listener(~p) stopped with reason: ~p~n", [Module, Reason]),
+    {noreply, State};
 handle_info(Info, State) ->
     couch_log:error("config:handle_info Info: ~p~n", [Info]),
     {noreply, State}.

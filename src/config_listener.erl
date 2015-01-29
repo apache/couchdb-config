@@ -13,7 +13,7 @@
 -module(config_listener).
 
 -behaviour(gen_event).
--vsn(1).
+-vsn(2).
 
 %% Public interface
 -export([start/2]).
@@ -22,11 +22,12 @@
 -export([behaviour_info/1]).
 
 %% Required gen_event interface
--export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2, 
+-export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2,
     code_change/3]).
 
 behaviour_info(callbacks) ->
-    [{handle_config_change,5}];
+    [{handle_config_change,5},
+     {handle_config_terminate, 3}];
 behaviour_info(_) ->
     undefined.
 
@@ -39,10 +40,10 @@ start(Module, Id, State) ->
 init({Module, State}) ->
     {ok, {Module, State}}.
 
-handle_event({config_change, Sec, Key, Value, Persist}, {Module, State}) ->
+handle_event({config_change, Sec, Key, Value, Persist}, {Module, {From, State}}) ->
     case Module:handle_config_change(Sec, Key, Value, Persist, State) of
         {ok, NewState} ->
-            {ok, {Module, NewState}};
+            {ok, {Module, {From, NewState}}};
         remove_handler ->
             remove_handler
     end.
@@ -53,8 +54,8 @@ handle_call(_Request, St) ->
 handle_info(_Info, St) ->
     {ok, St}.
 
-terminate(_Reason, _St) ->
-    ok.
+terminate(Reason, {Module, {Subscriber, State}}) ->
+    Module:handle_config_terminate(Subscriber, Reason, State).
 
 code_change(_OldVsn, St, _Extra) ->
     {ok, St}.
