@@ -33,7 +33,8 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, folsom, lager, goldrush, syntax_tools, compiler]).
+-define(DEPS, [couch_stats, couch_log, folsom, lager,
+               goldrush, syntax_tools, compiler, config]).
 
 
 setup() ->
@@ -43,37 +44,31 @@ setup({temporary, Chain}) ->
 setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
-    [ok = application:start(App) || App <- lists:reverse(?DEPS)],
-    {ok, Pid} = test_util:start_config(Chain),
-    Pid.
+    ok = application:set_env(config, ini_files, Chain),
+    test_util:start_applications(?DEPS).
 
 setup_empty() ->
     setup([]).
 
-teardown(Pid) ->
-    config:stop(),
-    [ok = application:stop(App) || App <- ?DEPS],
-    erlang:monitor(process, Pid),
-    receive
-        {'DOWN', _, _, Pid, _} ->
-            ok
-    after ?TIMEOUT ->
-        throw({timeout_error, config_stop})
-    end.
-teardown(_, Pid) ->
-    teardown(Pid).
+teardown({Pid, _}) ->
+    stop_listener(Pid),
+    [application:stop(App) || App <- ?DEPS];
+teardown(_) ->
+    [application:stop(App) || App <- ?DEPS].
 
+teardown(_, _) ->
+    [application:stop(App) || App <- ?DEPS].
 
 config_test_() ->
     {
         "CouchDB config tests",
         [
             config_get_tests(),
-            %% config_set_tests(),
-            %% config_del_tests(),
-            config_override_tests()
-            %% config_persistent_changes_tests(),
-            %% config_no_files_tests()
+            config_set_tests(),
+            config_del_tests(),
+            config_override_tests(),
+            config_persistent_changes_tests(),
+            config_no_files_tests()
         ]
     }.
 
@@ -90,8 +85,8 @@ config_get_tests() ->
                 should_return_undefined_atom_on_missed_section(),
                 should_return_undefined_atom_on_missed_option(),
                 should_return_custom_default_value_on_missed_option(),
-                should_only_return_default_on_missed_option(),
-                should_get_binary_option()
+                should_only_return_default_on_missed_option()%,
+                %%should_get_binary_option()
             ]
         }
     }.
@@ -104,8 +99,8 @@ config_set_tests() ->
             fun setup/0, fun teardown/1,
             [
                 should_update_option(),
-                should_create_new_section(),
-                should_set_binary_option()
+                should_create_new_section()%,
+                %%should_set_binary_option()
             ]
         }
     }.
@@ -118,8 +113,8 @@ config_del_tests() ->
             fun setup/0, fun teardown/1,
             [
                 should_return_undefined_atom_after_option_deletion(),
-                should_be_ok_on_deleting_unknown_options(),
-                should_delete_binary_option()
+                should_be_ok_on_deleting_unknown_options()%,
+                %%should_delete_binary_option()
             ]
         }
     }.
