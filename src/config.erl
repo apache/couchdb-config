@@ -139,7 +139,12 @@ get(Section, Key, Default) when is_binary(Section) and is_binary(Key) ->
     ?MODULE:get(binary_to_list(Section), binary_to_list(Key), Default);
 get(Section, Key, Default) when is_list(Section), is_list(Key) ->
     case ets:lookup(?MODULE, {Section, Key}) of
-        [] -> Default;
+        [] when Default == undefined -> Default;
+        [] when is_boolean(Default) -> Default;
+        [] when is_float(Default) -> Default;
+        [] when is_integer(Default) -> Default;
+        [] when is_list(Default) -> Default;
+        [] -> error(badarg);
         [{_, Match}] -> Match
     end.
 
@@ -155,7 +160,9 @@ set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
 set(Section, Key, Value, Persist, Reason)
         when is_list(Section), is_list(Key), is_list(Value) ->
-    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason}).
+    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason});
+set(_Sec, _Key, _Val, _Persist, _Reason) ->
+    error(badarg).
 
 
 delete(Section, Key) when is_binary(Section) and is_binary(Key) ->
