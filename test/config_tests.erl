@@ -12,6 +12,10 @@
 
 -module(config_tests).
 
+-beahiour(config_listener).
+
+-export([handle_config_change/5, handle_config_terminate/3]).
+
 -include_lib("couch/include/couch_eunit.hrl").
 -include_lib("couch/include/couch_db.hrl").
 
@@ -33,7 +37,8 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, folsom, lager, goldrush, syntax_tools, compiler]).
+-define(DEPS, [couch_stats, couch_log, folsom, lager,
+               goldrush, syntax_tools, compiler, config]).
 
 
 setup() ->
@@ -43,64 +48,57 @@ setup({temporary, Chain}) ->
 setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
-    [ok = application:start(App) || App <- lists:reverse(?DEPS)],
-    {ok, Pid} = test_util:start_config(Chain),
-    Pid.
+    ok = application:set_env(config, ini_files, Chain),
+    test_util:start_applications(?DEPS).
 
 setup_empty() ->
     setup([]).
 
-setup_register() ->
-    ConfigPid = setup(),
-    SentinelFunc = fun() ->
-        % Ping/Pong to make sure we wait for this
-        % process to die
-        receive
-            {ping, From} ->
-                From ! pong
-        end
-    end,
-    SentinelPid = spawn(SentinelFunc),
-    {ConfigPid, SentinelPid}.
+setup_config_listener() ->
+    setup(),
+    {ok, Pid} = spawn_listener(),
+    config:listen_for_changes(?MODULE, {Pid, self(), []}),
+    {Pid, self()}.
 
-teardown({ConfigPid, SentinelPid}) ->
-    teardown(ConfigPid),
-    case process_info(SentinelPid) of
-        undefined -> ok;
-        _ ->
-            SentinelPid ! {ping, self()},
-            receive
-                pong ->
-                    ok
-            after 100 ->
-                throw({timeout_error, registered_pid})
-            end
-    end;
-teardown(Pid) ->
-    config:stop(),
-    [ok = application:stop(App) || App <- ?DEPS],
-    erlang:monitor(process, Pid),
-    receive
-        {'DOWN', _, _, Pid, _} ->
-            ok
-    after ?TIMEOUT ->
-        throw({timeout_error, config_stop})
-    end.
-teardown(_, Pid) ->
-    teardown(Pid).
+teardown({Pid, _}) ->
+    stop_listener(Pid),
+    [application:stop(App) || App <- ?DEPS];
+teardown(_) ->
+    [application:stop(App) || App <- ?DEPS].
 
+teardown(_, _) ->
+    [application:stop(App) || App <- ?DEPS].
+
+handle_config_change("remove_handler", _Key, _Value, _Persist, _State) ->
+    remove_handler;
+handle_config_change("update_state", Key, _Value, _Persist, {Listener, Subscriber, Items}) ->
+    NewState = {Listener, Subscriber, [Key|Items]},
+    ok = reply(NewState, NewState),
+    {ok, NewState};
+handle_config_change(Section, Key, Value, Persist, State) ->
+    ok = reply({{Section, Key, Value, Persist}, State}, State),
+    {ok, State}.
+handle_config_terminate(Self, Reason, State) ->
+    ok = reply({stop, Self, Reason, State}, State),
+    ok.
+
+reply(Reply, {Listener, _, _}) ->
+    call_sync(Listener, {set, Reply}).
+
+wait_reply(Listener) ->
+    call_sync(Listener, get).
 
 config_test_() ->
     {
         "CouchDB config tests",
         [
             config_get_tests(),
-            %% config_set_tests(),
-            %% config_del_tests(),
-            config_override_tests()
-            %% config_persistent_changes_tests(),
-            %% config_register_tests(),
-            %% config_no_files_tests()
+            config_set_tests(),
+            config_del_tests(),
+            config_override_tests(),
+            config_persistent_changes_tests(),
+            config_no_files_tests(),
+            config_listener_behaviour_tests()
         ]
     }.
 
@@ -118,7 +116,8 @@ config_get_tests() ->
                 should_return_undefined_atom_on_missed_option(),
                 should_return_custom_default_value_on_missed_option(),
                 should_only_return_default_on_missed_option(),
-                should_get_binary_option()
+                should_fail_to_get_binary_value(),
+                should_return_any_supported_default()
             ]
         }
     }.
@@ -132,7 +131,7 @@ config_set_tests() ->
             [
                 should_update_option(),
                 should_create_new_section(),
-                should_set_binary_option()
+                should_fail_to_set_binary_value()
             ]
         }
     }.
@@ -145,8 +144,7 @@ config_del_tests() ->
             fun setup/0, fun teardown/1,
             [
                 should_return_undefined_atom_after_option_deletion(),
-                should_be_ok_on_deleting_unknown_options(),
-                should_delete_binary_option()
+                should_be_ok_on_deleting_unknown_options()
             ]
         }
     }.
@@ -188,21 +186,6 @@ config_persistent_changes_tests() ->
         }
     }.
 
-config_register_tests() ->
-    {
-        "Config changes subscriber",
-        {
-            foreach,
-            fun setup_register/0, fun teardown/1,
-            [
-                fun should_handle_port_changes/1,
-                fun should_pass_persistent_flag/1,
-                fun should_not_trigger_handler_on_other_options_changes/1,
-                fun should_not_trigger_handler_after_related_process_death/1
-            ]
-        }
-    }.
-
 config_no_files_tests() ->
     {
         "Test config with no files",
@@ -217,6 +200,22 @@ config_no_files_tests() ->
         }
     }.
 
+config_listener_behaviour_tests() ->
+    {
+        "Test config_listener behaviour",
+        {
+            foreach,
+            fun setup_config_listener/0, fun teardown/1,
+            [
+                fun should_handle_value_change/1,
+                fun should_pass_correct_state_to_handle_config_change/1,
+                fun should_pass_correct_state_to_handle_config_terminate/1,
+                fun should_pass_subscriber_pid_to_handle_config_terminate/1,
+                fun should_not_call_handle_config_after_related_process_death/1,
+                fun should_remove_handler_when_requested/1
+            ]
+        }
+    }.
 
 should_load_all_configs() ->
     ?_assert(length(config:all()) > 0).
@@ -244,9 +243,16 @@ should_only_return_default_on_missed_option() ->
     ?_assertEqual("0",
                   config:get("httpd", "port", "bar")).
 
-should_get_binary_option() ->
-    ?_assertEqual(<<"baz">>,
+should_fail_to_get_binary_value() ->
+    ?_assertException(error, badarg,
                   config:get(<<"foo">>, <<"bar">>, <<"baz">>)).
+
+should_return_any_supported_default() ->
+    Values = [undefined, "list", true, false, 0.1, 1],
+    Tests = [{lists:flatten(io_lib:format("for type(~p)", [V])), V}
+        || V <- Values],
+    [{T, ?_assertEqual(V, config:get(<<"foo">>, <<"bar">>, V))}
+        || {T, V} <- Tests].
 
 should_update_option() ->
     ?_assertEqual("severe",
@@ -263,12 +269,9 @@ should_create_new_section() ->
             config:get("new_section", "bizzle")
         end).
 
-should_set_binary_option() ->
-    ?_assertEqual(<<"baz">>,
-        begin
-            ok = config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
-            config:get(<<"foo">>, <<"bar">>)
-        end).
+should_fail_to_set_binary_value() ->
+    ?_assertException(error, badarg,
+        config:set(<<"foo">>, <<"bar">>, <<"baz">>, false)).
 
 should_return_undefined_atom_after_option_deletion() ->
     ?_assertEqual(undefined,
@@ -279,14 +282,6 @@ should_return_undefined_atom_after_option_deletion() ->
 
 should_be_ok_on_deleting_unknown_options() ->
     ?_assertEqual(ok, config:delete("zoo", "boo", false)).
-
-should_delete_binary_option() ->
-    ?_assertEqual(undefined,
-        begin
-            ok = config:set(<<"foo">>, <<"bar">>, <<"baz">>, false),
-            ok = config:delete(<<"foo">>, <<"bar">>, false),
-            config:get(<<"foo">>, <<"bar">>)
-        end).
 
 should_ensure_in_defaults(_, _) ->
     ?_test(begin
@@ -347,108 +342,6 @@ should_ensure_that_written_to_last_config_in_chain(_, _) ->
                      config:get("httpd", "bind_address"))
     end).
 
-should_handle_port_changes({_, SentinelPid}) ->
-    ?_assert(begin
-        MainProc = self(),
-        Port = "8080",
-
-        config:register(
-            fun("httpd", "port", Value) ->
-                % config catches every error raised from handler
-                % so it's not possible to just assert on wrong value.
-                % We have to return the result as message
-                MainProc ! (Value =:= Port)
-            end,
-            SentinelPid
-        ),
-        ok = config:set("httpd", "port", Port, false),
-
-        receive
-            R ->
-                R
-        after ?TIMEOUT ->
-             erlang:error({assertion_failed,
-                           [{module, ?MODULE},
-                            {line, ?LINE},
-                            {reason, "Timeout"}]})
-        end
-    end).
-
-should_pass_persistent_flag({_, SentinelPid}) ->
-    ?_assert(begin
-        MainProc = self(),
-
-        config:register(
-            fun("httpd", "port", _, Persist) ->
-                % config catches every error raised from handler
-                % so it's not possible to just assert on wrong value.
-                % We have to return the result as message
-                MainProc ! Persist
-            end,
-            SentinelPid
-        ),
-        ok = config:set("httpd", "port", "8080", false),
-
-        receive
-            false ->
-                true
-        after ?SHORT_TIMEOUT ->
-            false
-        end
-    end).
-
-should_not_trigger_handler_on_other_options_changes({_, SentinelPid}) ->
-    ?_assert(begin
-        MainProc = self(),
-
-        config:register(
-            fun("httpd", "port", _) ->
-                MainProc ! ok
-            end,
-            SentinelPid
-        ),
-        ok = config:set("httpd", "bind_address", "0.0.0.0", false),
-
-        receive
-            ok ->
-                false
-        after ?SHORT_TIMEOUT ->
-            true
-        end
-    end).
-
-should_not_trigger_handler_after_related_process_death({_, SentinelPid}) ->
-    ?_assert(begin
-        MainProc = self(),
-
-        config:register(
-            fun("httpd", "port", _) ->
-                MainProc ! ok
-            end,
-            SentinelPid
-        ),
-
-        SentinelPid ! {ping, MainProc},
-        receive
-            pong ->
-                ok
-        after ?SHORT_TIMEOUT ->
-             erlang:error({assertion_failed,
-                           [{module, ?MODULE},
-                            {line, ?LINE},
-                            {reason, "Timeout"}]})
-        end,
-
-        ok = config:set("httpd", "port", "12345", false),
-
-        receive
-            ok ->
-                false
-        after ?SHORT_TIMEOUT ->
-            true
-        end
-    end).
-
 should_ensure_that_no_ini_files_loaded() ->
     ?_assertEqual(0, length(config:all())).
 
@@ -465,3 +358,92 @@ should_create_persistent_option() ->
             ok = config:set("httpd", "bind_address", "127.0.0.1"),
             config:get("httpd", "bind_address")
         end).
+
+should_handle_value_change({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({{"httpd", "port", "80", false}, _}, wait_reply(Pid))
+    end).
+should_pass_correct_state_to_handle_config_change({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({_, {Pid, _, []}}, wait_reply(Pid)),
+        ok = config:set("update_state", "foo", "any", false),
+        ?assertMatch({Pid, _, ["foo"]}, wait_reply(Pid))
+    end).
+should_pass_correct_state_to_handle_config_terminate({Pid, _}) ->
+    ?_test(begin
+        %% prepare some state
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch({_, {Pid, _, []}}, wait_reply(Pid)),
+        ok = config:set("update_state", "foo", "any", false),
+        ?assertMatch({Pid, _, ["foo"]}, wait_reply(Pid)),
+
+        %% remove handler
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        {stop, Subscriber, _Reason, State} = Reply,
+        ?assert(is_pid(Subscriber)),
+        ?assertMatch({Pid, Subscriber, ["foo"]}, State)
+    end).
+should_pass_subscriber_pid_to_handle_config_terminate({Pid, SubscriberPid}) ->
+    ?_test(begin
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        {stop, Subscriber, _Reason, _State} = Reply,
+        ?assertMatch(SubscriberPid, Subscriber)
+    end).
+should_not_call_handle_config_after_related_process_death({Pid, _}) ->
+    ?_test(begin
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        ok = config:set("httpd", "port", "80", false),
+        ?assertMatch(undefined, wait_reply(Pid))
+    end).
+should_remove_handler_when_requested({Pid, _}) ->
+    ?_test(begin
+        ?assertEqual(1, n_handlers()),
+
+        ok = config:set("remove_handler", "any", "any", false),
+        Reply = wait_reply(Pid),
+        ?assertMatch({stop, _, remove_handler, _}, Reply),
+
+        ?assertEqual(0, n_handlers())
+    end).
+
+call_sync(Listener, Msg) ->
+    Ref = make_ref(),
+    Listener ! {Ref, self(), Msg},
+    receive
+        {ok, Ref, Reply} -> Reply
+    after ?TIMEOUT ->
+        throw({error, {timeout, call_sync}})
+    end.
+
+spawn_listener() ->
+    {ok, spawn(fun() -> loop(undefined) end)}.
+
+stop_listener(Listener) ->
+    call_sync(Listener, stop).
+
+loop(State) ->
+    receive
+        {Ref, From, stop} ->
+            From ! {ok, Ref, ok},
+            ok;
+        {Ref, From, {set, Value}} ->
+            From ! {ok, Ref, ok},
+            loop(Value);
+        {Ref, From, get} ->
+            From ! {ok, Ref, State},
+            loop(undefined)
+    end.
+
+n_handlers() ->
+    length(gen_event:which_handlers(config_event)).
