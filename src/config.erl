@@ -137,7 +137,9 @@ get(Section, Key) ->
 
 get(Section, Key, Default) when is_binary(Section) and is_binary(Key) ->
     ?MODULE:get(binary_to_list(Section), binary_to_list(Key), Default);
-get(Section, Key, Default) when is_list(Section), is_list(Key) ->
+get(Section, Key, Default) ->
+    assert_string(Section),
+    assert_string(Key),
     case ets:lookup(?MODULE, {Section, Key}) of
         [] when Default == undefined -> Default;
         [] when is_boolean(Default) -> Default;
