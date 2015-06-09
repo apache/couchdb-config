@@ -144,6 +144,7 @@ get(Section, Key, Default) when is_list(Section), is_list(Key) ->
         [] when is_float(Default) -> Default;
         [] when is_integer(Default) -> Default;
         [] when is_list(Default) -> Default;
+        [] when is_atom(Default) -> Default;
         [] -> error(badarg);
         [{_, Match}] -> Match
     end.
