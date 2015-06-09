@@ -189,7 +189,7 @@ delete(Section, Key, Persist, Reason) when is_boolean(Persist) ->
     gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
 
 assert_string(Term) ->
-    case io_lib:printable_list(Term) of
+    case io_lib:printable_unicode_list(Term) of
         true ->
             ok;
         false ->
@@ -313,12 +313,12 @@ parse_ini_file(IniFile) ->
             throw({startup_error, Msg})
     end,
 
-    Lines = re:split(IniBin, "\r\n|\n|\r|\032", [{return, list}]),
+    Lines = re:split(IniBin, "\r\n|\n|\r|\032", [{return, list}, unicode]),
     {_, ParsedIniValues} =
     lists:foldl(fun(Line, {AccSectionName, AccValues}) ->
             case string:strip(Line) of
             "[" ++ Rest ->
-                case re:split(Rest, "\\]", [{return, list}]) of
+                case re:split(Rest, "\\]", [{return, list}, unicode]) of
                 [NewSectionName, ""] ->
                     {NewSectionName, AccValues};
                 _Else -> % end bracket not at end, ignore this line
@@ -327,7 +327,7 @@ parse_ini_file(IniFile) ->
             ";" ++ _Comment ->
                 {AccSectionName, AccValues};
             Line2 ->
-                case re:split(Line2, "\s?=\s?", [{return, list}]) of
+                case re:split(Line2, "\s?=\s?", [{return, list}, unicode]) of
                 [Value] ->
                     MultiLineValuePart = case re:run(Line, "^ \\S", []) of
                     {match, _} ->
@@ -338,7 +338,7 @@ parse_ini_file(IniFile) ->
                     case {MultiLineValuePart, AccValues} of
                     {true, [{{_, ValueName}, PrevValue} | AccValuesRest]} ->
                         % remove comment
-                        case re:split(Value, " ;|\t;", [{return, list}]) of
+                        case re:split(Value, " ;|\t;", [{return, list}, unicode]) of
                         [[]] ->
                             % empty line
                             {AccSectionName, AccValues};
@@ -355,7 +355,7 @@ parse_ini_file(IniFile) ->
                 [ValueName|LineValues] -> % yeehaw, got a line!
                     RemainingLine = config_util:implode(LineValues, "="),
                     % removes comments
-                    case re:split(RemainingLine, " ;|\t;", [{return, list}]) of
+                    case re:split(RemainingLine, " ;|\t;", [{return, list}, unicode]) of
                     [[]] ->
                         % empty line means delete this key
                         ets:delete(?MODULE, {AccSectionName, ValueName}),
