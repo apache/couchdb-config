@@ -137,7 +137,9 @@ get(Section, Key) ->
 
 get(Section, Key, Default) when is_binary(Section) and is_binary(Key) ->
     ?MODULE:get(binary_to_list(Section), binary_to_list(Key), Default);
-get(Section, Key, Default) when is_list(Section), is_list(Key) ->
+get(Section, Key, Default) ->
+    assert_string(Section),
+    assert_string(Key),
     case ets:lookup(?MODULE, {Section, Key}) of
         [] when Default == undefined -> Default;
         [] when is_boolean(Default) -> Default;
@@ -159,8 +161,11 @@ set(Section, Key, Value, Reason) ->
 
 set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
-set(Section, Key, Value, Persist, Reason)
-        when is_list(Section), is_list(Key), is_list(Value) ->
+set(Section, Key, Value, Persist, Reason) when is_boolean(Persist) ->
+    assert_string(Section),
+    assert_string(Key),
+    assert_string(Value),
+    if Reason == nil -> ok; true -> assert_string(Reason) end,
     gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason});
 set(_Sec, _Key, _Val, _Persist, _Reason) ->
     error(badarg).
@@ -178,9 +183,19 @@ delete(Section, Key, Reason) ->
 
 delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
-delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
+delete(Section, Key, Persist, Reason) when is_boolean(Persist) ->
+    assert_string(Section),
+    assert_string(Key),
+    if Reason == nil -> ok; true -> assert_string(Reason) end,
     gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
 
+assert_string(Term) ->
+    case io_lib:printable_unicode_list(Term) of
+        true ->
+            ok;
+        false ->
+            error(badarg)
+    end.
 
 listen_for_changes(CallbackModule, InitialState) ->
     gen_server:call(?MODULE, {listen_for_changes, CallbackModule, InitialState}).
@@ -299,12 +314,12 @@ parse_ini_file(IniFile) ->
             throw({startup_error, Msg})
     end,
 
-    Lines = re:split(IniBin, "\r\n|\n|\r|\032", [{return, list}]),
+    Lines = re:split(IniBin, "\r\n|\n|\r|\032", [{return, list}, unicode]),
     {_, ParsedIniValues} =
     lists:foldl(fun(Line, {AccSectionName, AccValues}) ->
             case string:strip(Line) of
             "[" ++ Rest ->
-                case re:split(Rest, "\\]", [{return, list}]) of
+                case re:split(Rest, "\\]", [{return, list}, unicode]) of
                 [NewSectionName, ""] ->
                     {NewSectionName, AccValues};
                 _Else -> % end bracket not at end, ignore this line
@@ -313,7 +328,7 @@ parse_ini_file(IniFile) ->
             ";" ++ _Comment ->
                 {AccSectionName, AccValues};
             Line2 ->
-                case re:split(Line2, "\s?=\s?", [{return, list}]) of
+                case re:split(Line2, "\s?=\s?", [{return, list}, unicode]) of
                 [Value] ->
                     MultiLineValuePart = case re:run(Line, "^ \\S", []) of
                     {match, _} ->
@@ -324,7 +339,7 @@ parse_ini_file(IniFile) ->
                     case {MultiLineValuePart, AccValues} of
                     {true, [{{_, ValueName}, PrevValue} | AccValuesRest]} ->
                         % remove comment
-                        case re:split(Value, " ;|\t;", [{return, list}]) of
+                        case re:split(Value, " ;|\t;", [{return, list}, unicode]) of
                         [[]] ->
                             % empty line
                             {AccSectionName, AccValues};
@@ -341,7 +356,7 @@ parse_ini_file(IniFile) ->
                 [ValueName|LineValues] -> % yeehaw, got a line!
                     RemainingLine = config_util:implode(LineValues, "="),
                     % removes comments
-                    case re:split(RemainingLine, " ;|\t;", [{return, list}]) of
+                    case re:split(RemainingLine, " ;|\t;", [{return, list}, unicode]) of
                     [[]] ->
                         % empty line means delete this key
                         ets:delete(?MODULE, {AccSectionName, ValueName}),

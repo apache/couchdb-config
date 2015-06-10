@@ -98,7 +98,8 @@ config_test_() ->
             config_override_tests(),
             config_persistent_changes_tests(),
             config_no_files_tests(),
-            config_listener_behaviour_tests()
+            config_listener_behaviour_tests(),
+            config_unicode_tests()
         ]
     }.
 
@@ -116,7 +117,7 @@ config_get_tests() ->
                 should_return_undefined_atom_on_missed_option(),
                 should_return_custom_default_value_on_missed_option(),
                 should_only_return_default_on_missed_option(),
-                should_fail_to_get_binary_value(),
+                should_fail_to_get_non_string_value(),
                 should_return_any_supported_default()
             ]
         }
@@ -131,7 +132,7 @@ config_set_tests() ->
             [
                 should_update_option(),
                 should_create_new_section(),
-                should_fail_to_set_binary_value()
+                should_fail_to_set_non_string_value()
             ]
         }
     }.
@@ -144,7 +145,8 @@ config_del_tests() ->
             fun setup/0, fun teardown/1,
             [
                 should_return_undefined_atom_after_option_deletion(),
-                should_be_ok_on_deleting_unknown_options()
+                should_be_ok_on_deleting_unknown_options(),
+                should_fail_to_delete_non_string_value()
             ]
         }
     }.
@@ -217,6 +219,23 @@ config_listener_behaviour_tests() ->
         }
     }.
 
+config_unicode_tests() ->
+    {
+        "Config unicode tests",
+        {
+            foreachx,
+            fun setup/1, fun teardown/2,
+            [
+                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_2]},
+                 fun should_get_non_latin1_value/2},
+                {{persistent, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_2]},
+                 fun should_set_non_latin1_value/2},
+                {{persistent, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_2]},
+                 fun should_delete_non_latin1_value/2}
+            ]
+        }
+    }.
+
 should_load_all_configs() ->
     ?_assert(length(config:all()) > 0).
 
@@ -243,9 +262,17 @@ should_only_return_default_on_missed_option() ->
     ?_assertEqual("0",
                   config:get("httpd", "port", "bar")).
 
-should_fail_to_get_binary_value() ->
+should_fail_to_get_non_string_value() ->
     ?_assertException(error, badarg,
-                  config:get(<<"foo">>, <<"bar">>, <<"baz">>)).
+                  config:get(<<"foo">>, <<"bar">>, <<"baz">>)),
+    ?_assertException(error, badarg,
+                  config:get([f, o, o], [b, a, r], [b, a, z])).
+
+should_get_non_latin1_value(_, _) ->
+    ?_test(begin
+        ?assertEqual("true",
+            config:get("fizbang", [1090, 1077, 1089, 1090]))
+    end).
 
 should_return_any_supported_default() ->
     Values = [undefined, "list", true, false, 0.1, 1],
@@ -269,9 +296,19 @@ should_create_new_section() ->
             config:get("new_section", "bizzle")
         end).
 
-should_fail_to_set_binary_value() ->
+should_fail_to_set_non_string_value() ->
     ?_assertException(error, badarg,
-        config:set(<<"foo">>, <<"bar">>, <<"baz">>, false)).
+        config:set(<<"foo">>, <<"bar">>, <<"baz">>, false)),
+    ?_assertException(error, badarg,
+        config:set([f, o, o], [b, a, r], [b, a, z], false)).
+
+should_set_non_latin1_value(_, _) ->
+    ?_test(begin
+        ?assertEqual(ok,
+            config:set("fizbang", [1090, 1077, 1089, 1090], "false")),
+        ?assertEqual("false",
+            config:get("fizbang", [1090, 1077, 1089, 1090]))
+      end).
 
 should_return_undefined_atom_after_option_deletion() ->
     ?_assertEqual(undefined,
@@ -282,6 +319,18 @@ should_return_undefined_atom_after_option_deletion() ->
 
 should_be_ok_on_deleting_unknown_options() ->
     ?_assertEqual(ok, config:delete("zoo", "boo", false)).
+
+should_fail_to_delete_non_string_value() ->
+    ?_assertException(error, badarg,
+        config:delete(<<"foo">>, <<"bar">>, false)),
+    ?_assertException(error, badarg,
+        config:delete([f, o, o], [b, a, r], false)).
+
+should_delete_non_latin1_value(_, _) ->
+    ?_test(begin
+        ?assertEqual(ok,
+            config:delete("fizbang", [1090, 1077, 1089, 1090]))
+    end).
 
 should_ensure_in_defaults(_, _) ->
     ?_test(begin
