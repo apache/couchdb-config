@@ -208,7 +208,7 @@ handle_call(all, _From, Config) ->
     {reply, Resp, Config};
 handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
     true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-    error_logger:info_msg("~p: [~s] ~s set to ~s for reason ~p",
+    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
         [?MODULE, Sec, Key, Val, Reason]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
@@ -223,7 +223,7 @@ handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
     {reply, ok, Config};
 handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
-    error_logger:info_msg("~p: [~s] ~s deleted for reason ~p",
+    couch_log:notice("~p: [~s] ~s deleted for reason ~p",
         [?MODULE, Sec, Key, Reason]),
     case {Persist, Config#config.write_filename} of
         {true, undefined} ->
@@ -270,16 +270,16 @@ handle_cast(_Msg, State) ->
     {noreply, State}.
 
 handle_info({gen_event_EXIT, {config_listener, Module}, shutdown}, State)  ->
-    error_logger:info_msg("config_listener(~p) stopped with reason: shutdown~n", [Module]),
+    couch_log:notice("config_listener(~p) stopped with reason: shutdown~n", [Module]),
     {noreply, State};
 handle_info({gen_event_EXIT, {config_listener, Module}, normal}, State)  ->
-    error_logger:info_msg("config_listener(~p) stopped with reason: shutdown~n", [Module]),
+    couch_log:notice("config_listener(~p) stopped with reason: shutdown~n", [Module]),
     {noreply, State};
 handle_info({gen_event_EXIT, {config_listener, Module}, Reason}, State) ->
-    error_logger:info_msg("config_listener(~p) stopped with reason: ~p~n", [Module, Reason]),
+    couch_log:notice("config_listener(~p) stopped with reason: ~p~n", [Module, Reason]),
     {noreply, State};
 handle_info(Info, State) ->
-    error_logger:info_msg("config:handle_info Info: ~p~n", [Info]),
+    couch_log:notice("config:handle_info Info: ~p~n", [Info]),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -295,7 +295,7 @@ parse_ini_file(IniFile) ->
         {error, enoent} ->
             Fmt = "Couldn't find server configuration file ~s.",
             Msg = list_to_binary(io_lib:format(Fmt, [IniFilename])),
-            error_logger:error_msg("~s~n", [Msg]),
+            couch_log:error("~s~n", [Msg]),
             throw({startup_error, Msg})
     end,
 

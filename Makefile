@@ -11,7 +11,7 @@
 # the License.
 export BUILDDIR ?= ..
 
-REBAR ?= rebar -vvv
+REBAR ?= rebar
 
 .PHONY: all app clean test shell xref
 
