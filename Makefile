@@ -13,7 +13,7 @@ export BUILDDIR ?= ..
 
 REBAR ?= rebar
 
-.PHONY: all app clean test shell xref
+.PHONY: all app clean check shell xref
 
 all:
 	${REBAR} get compile
@@ -24,7 +24,7 @@ app:
 clean: app
 	${REBAR} clean
 
-test: app
+check: app
 	mkdir -p tmp/etc;
 	cp test/fixtures/default_eunit.ini tmp/etc/default_eunit.ini;
 	touch tmp/etc/local_eunit.ini;
