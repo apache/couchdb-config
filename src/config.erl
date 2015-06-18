@@ -273,13 +273,13 @@ handle_info({gen_event_EXIT, {config_listener, Module}, shutdown}, State)  ->
     couch_log:notice("config_listener(~p) stopped with reason: shutdown~n", [Module]),
     {noreply, State};
 handle_info({gen_event_EXIT, {config_listener, Module}, normal}, State)  ->
-    couch_log:notice("config_listener(~p) stopped with reason: shutdown~n", [Module]),
+    couch_log:error("config_listener(~p) stopped with reason: shutdown~n", [Module]),
     {noreply, State};
 handle_info({gen_event_EXIT, {config_listener, Module}, Reason}, State) ->
-    couch_log:notice("config_listener(~p) stopped with reason: ~p~n", [Module, Reason]),
+    couch_log:error("config_listener(~p) stopped with reason: ~p~n", [Module, Reason]),
     {noreply, State};
 handle_info(Info, State) ->
-    couch_log:notice("config:handle_info Info: ~p~n", [Info]),
+    couch_log:error("config:handle_info Info: ~p~n", [Info]),
     {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
