@@ -17,6 +17,6 @@
         config,
         config_event
     ]},
-    {applications, [kernel, stdlib, syntax_tools, compiler]},
+    {applications, [kernel, stdlib, couch_log, syntax_tools, compiler]},
     {mod, {config_app, []}}
 ]}.
