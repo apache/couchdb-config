@@ -16,8 +16,7 @@
 
 -export([handle_config_change/5, handle_config_terminate/3]).
 
--include_lib("couch/include/couch_eunit.hrl").
--include_lib("couch/include/couch_db.hrl").
+-include("couch_eunit.hrl").
 
 -define(SHORT_TIMEOUT, 100).
 -define(TIMEOUT, 1000).
