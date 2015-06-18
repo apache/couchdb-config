@@ -237,7 +237,7 @@ should_return_custom_default_value_on_missed_option() ->
                   config:get("httpd", "foo", "bar")).
 
 should_only_return_default_on_missed_option() ->
-    ?_assertEqual("5986",
+    ?_assertEqual("0",
                   config:get("httpd", "port", "bar")).
 
 should_fail_to_get_binary_value() ->
@@ -284,7 +284,7 @@ should_ensure_in_defaults(_, _) ->
     ?_test(begin
         ?assertEqual("500",
                      config:get("couchdb", "max_dbs_open")),
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual(undefined,
                      config:get("fizbang", "unicode"))
@@ -311,7 +311,7 @@ should_win_last_in_chain(_, _) ->
 
 should_write_changes(_, _) ->
     ?_test(begin
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual(ok,
                      config:set("httpd", "port", "8080")),
@@ -325,7 +325,7 @@ should_write_changes(_, _) ->
 
 should_ensure_that_default_wasnt_modified(_, _) ->
     ?_test(begin
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual("127.0.0.1",
                      config:get("httpd", "bind_address"))
