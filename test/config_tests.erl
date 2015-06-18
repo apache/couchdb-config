@@ -22,7 +22,7 @@
 -define(TIMEOUT, 1000).
 
 -define(CONFIG_FIXTURESDIR,
-        filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
+        filename:join([?BUILDDIR(), "test", "fixtures"])).
 -define(CONFIG_FIXTURE_1,
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_1.ini"])).
 -define(CONFIG_FIXTURE_2,
@@ -30,6 +30,7 @@
 -define(CONFIG_FIXTURE_TEMP,
     begin
         FileName = filename:join([?TEMPDIR, "config_temp.ini"]),
+        ok = filelib:ensure_dir(FileName),
         {ok, Fd} = file:open(FileName, write),
         ok = file:truncate(Fd),
         ok = file:close(Fd),
@@ -236,7 +237,7 @@ should_return_custom_default_value_on_missed_option() ->
                   config:get("httpd", "foo", "bar")).
 
 should_only_return_default_on_missed_option() ->
-    ?_assertEqual("0",
+    ?_assertEqual("5986",
                   config:get("httpd", "port", "bar")).
 
 should_fail_to_get_binary_value() ->
