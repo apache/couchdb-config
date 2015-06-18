@@ -16,7 +16,25 @@
 
 -export([handle_config_change/5, handle_config_terminate/3]).
 
--include("couch_eunit.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(BUILDDIR,
+    fun() ->
+        case os:getenv("BUILDDIR") of
+            false ->
+                throw("BUILDDIR environment variable must be set");
+            Dir ->
+                Dir
+        end
+    end).
+-define(CONFIG_DEFAULT,
+    filename:join([?BUILDDIR(), "tmp", "etc", "default_eunit.ini"])).
+-define(CONFIG_CHAIN, [
+    ?CONFIG_DEFAULT,
+    filename:join([?BUILDDIR(), "tmp", "etc", "local_eunit.ini"]),
+    filename:join([?BUILDDIR(), "tmp", "etc", "eunit.ini"])]).
+-define(TEMPDIR,
+    filename:join([?BUILDDIR(), "tmp", "tmp_data"])).
 
 -define(SHORT_TIMEOUT, 100).
 -define(TIMEOUT, 1000).
