@@ -36,10 +36,6 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, folsom, lager,
-               goldrush, syntax_tools, compiler, config]).
-
-
 setup() ->
     setup(?CONFIG_CHAIN).
 setup({temporary, Chain}) ->
@@ -48,7 +44,8 @@ setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
     ok = application:set_env(config, ini_files, Chain),
-    test_util:start_applications(?DEPS).
+    {ok, _} = application:ensure_all_started(config),
+    ok.
 
 setup_empty() ->
     setup([]).
@@ -61,12 +58,12 @@ setup_config_listener() ->
 
 teardown({Pid, _}) ->
     stop_listener(Pid),
-    [application:stop(App) || App <- ?DEPS];
+    application:stop(config);
 teardown(_) ->
-    [application:stop(App) || App <- ?DEPS].
+    application:stop(config).
 
 teardown(_, _) ->
-    [application:stop(App) || App <- ?DEPS].
+    application:stop(config).
 
 handle_config_change("remove_handler", _Key, _Value, _Persist, _State) ->
     remove_handler;
