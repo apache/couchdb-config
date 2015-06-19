@@ -1,12 +1,6 @@
-relx
-_rel/
-.erlang.mk/
-db
-Mnesia*
 ebin
 deps
 doc
-examples/blog/log
 .eunit
 *.o
 *.beam
@@ -14,5 +8,4 @@ examples/blog/log
 .rebar
 log*/
 erl_crash.dump
-.erlang.mk.*
 tmp/
