@@ -95,7 +95,7 @@ to_float(List) when is_list(List) ->
 to_float(Float) when is_float(Float) ->
     Float;
 to_float(Int) when is_integer(Int) ->
-    list_to_float(integer_to_list(Int));
+    list_to_float(integer_to_list(Int) ++ ".0");
 to_float(Bin) when is_binary(Bin) ->
     list_to_float(binary_to_list(Bin)).
 
