@@ -75,7 +75,7 @@ to_integer(List) when is_list(List) ->
 to_integer(Int) when is_integer(Int) ->
     Int;
 to_integer(Bin) when is_binary(Bin) ->
-    binary_to_list(list_to_integer(Bin)).
+    list_to_integer(binary_to_list(Bin)).
 
 get_float(Section, Key, Default) when is_float(Default) ->
     try
@@ -97,7 +97,7 @@ to_float(Float) when is_float(Float) ->
 to_float(Int) when is_integer(Int) ->
     list_to_float(integer_to_list(Int));
 to_float(Bin) when is_binary(Bin) ->
-    binary_to_list(list_to_float(Bin)).
+    list_to_float(binary_to_list(Bin)).
 
 get_boolean(Section, Key, Default) when is_boolean(Default) ->
     try
