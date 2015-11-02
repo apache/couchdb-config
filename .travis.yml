@@ -1,15 +1,20 @@
 language: erlang
 
 otp_release:
+  - 18.1
   - 18.0
   - 17.5
   - R16B03-1
-  - R14B04
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+      - libmozjs185-dev
 
 before_install:
-  - sudo apt-get update -qq
-  - sudo apt-get -y install libmozjs-dev
-  - git clone https://github.com/apache/couchdb
+  - git clone --depth 1 https://github.com/apache/couchdb
 
 before_script:
   - cd couchdb
@@ -18,7 +23,6 @@ before_script:
   - make
 
 script:
-  - rebar setup_eunit
-  - BUILDDIR=`pwd` rebar -r eunit apps=config
+  - make eunit apps=config
 
 cache: apt
