@@ -12,7 +12,7 @@
 
 -module(config_tests).
 
--beahiour(config_listener).
+-behaviour(config_listener).
 
 -export([handle_config_change/5, handle_config_terminate/3]).
 
