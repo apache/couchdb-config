@@ -408,13 +408,13 @@ should_not_call_handle_config_after_related_process_death({Pid, _}) ->
     end).
 should_remove_handler_when_requested({Pid, _}) ->
     ?_test(begin
-        ?assertEqual(1, n_handlers()),
+        ?assertEqual(2, n_handlers()),
 
         ok = config:set("remove_handler", "any", "any", false),
         Reply = wait_reply(Pid),
         ?assertMatch({stop, _, remove_handler, _}, Reply),
 
-        ?assertEqual(0, n_handlers())
+        ?assertEqual(1, n_handlers())
     end).
 
 call_sync(Listener, Msg) ->
