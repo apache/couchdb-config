@@ -16,14 +16,31 @@
 
 -export([handle_config_change/5, handle_config_terminate/3]).
 
--include_lib("couch/include/couch_eunit.hrl").
--include_lib("couch/include/couch_db.hrl").
+-include_lib("eunit/include/eunit.hrl").
+
+-define(BUILDDIR,
+    fun() ->
+        case os:getenv("BUILDDIR") of
+            false ->
+                throw("BUILDDIR environment variable must be set");
+            Dir ->
+                Dir
+        end
+    end).
+-define(CONFIG_DEFAULT,
+    filename:join([?BUILDDIR(), "tmp", "etc", "default_eunit.ini"])).
+-define(CONFIG_CHAIN, [
+    ?CONFIG_DEFAULT,
+    filename:join([?BUILDDIR(), "tmp", "etc", "local_eunit.ini"]),
+    filename:join([?BUILDDIR(), "tmp", "etc", "eunit.ini"])]).
+-define(TEMPDIR,
+    filename:join([?BUILDDIR(), "tmp", "tmp_data"])).
 
 -define(SHORT_TIMEOUT, 100).
 -define(TIMEOUT, 1000).
 
 -define(CONFIG_FIXTURESDIR,
-        filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
+        filename:join([?BUILDDIR(), "test", "fixtures"])).
 -define(CONFIG_FIXTURE_1,
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_1.ini"])).
 -define(CONFIG_FIXTURE_2,
@@ -31,15 +48,12 @@
 -define(CONFIG_FIXTURE_TEMP,
     begin
         FileName = filename:join([?TEMPDIR, "config_temp.ini"]),
+        ok = filelib:ensure_dir(FileName),
         {ok, Fd} = file:open(FileName, write),
         ok = file:truncate(Fd),
         ok = file:close(Fd),
         FileName
     end).
-
--define(DEPS, [couch_stats, couch_log, folsom, lager,
-               goldrush, syntax_tools, compiler, config]).
-
 
 setup() ->
     setup(?CONFIG_CHAIN).
@@ -49,7 +63,8 @@ setup({persistent, Chain}) ->
     setup(lists:append(Chain, [?CONFIG_FIXTURE_TEMP]));
 setup(Chain) ->
     ok = application:set_env(config, ini_files, Chain),
-    test_util:start_applications(?DEPS).
+    {ok, _} = application:ensure_all_started(config),
+    ok.
 
 setup_empty() ->
     setup([]).
@@ -62,12 +77,12 @@ setup_config_listener() ->
 
 teardown({Pid, _}) ->
     stop_listener(Pid),
-    [application:stop(App) || App <- ?DEPS];
+    application:stop(config);
 teardown(_) ->
-    [application:stop(App) || App <- ?DEPS].
+    application:stop(config).
 
 teardown(_, _) ->
-    [application:stop(App) || App <- ?DEPS].
+    application:stop(config).
 
 handle_config_change("remove_handler", _Key, _Value, _Persist, _State) ->
     remove_handler;
@@ -287,7 +302,7 @@ should_ensure_in_defaults(_, _) ->
     ?_test(begin
         ?assertEqual("500",
                      config:get("couchdb", "max_dbs_open")),
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual(undefined,
                      config:get("fizbang", "unicode"))
@@ -314,7 +329,7 @@ should_win_last_in_chain(_, _) ->
 
 should_write_changes(_, _) ->
     ?_test(begin
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual(ok,
                      config:set("httpd", "port", "8080")),
@@ -328,7 +343,7 @@ should_write_changes(_, _) ->
 
 should_ensure_that_default_wasnt_modified(_, _) ->
     ?_test(begin
-        ?assertEqual("5986",
+        ?assertEqual("0",
                      config:get("httpd", "port")),
         ?assertEqual("127.0.0.1",
                      config:get("httpd", "bind_address"))

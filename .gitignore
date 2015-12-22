@@ -1,0 +1,11 @@
+ebin
+deps
+doc
+.eunit
+*.o
+*.beam
+*.plt
+.rebar
+log*/
+erl_crash.dump
+tmp/
