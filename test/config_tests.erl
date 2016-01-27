@@ -37,8 +37,7 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, folsom, lager,
-               goldrush, syntax_tools, compiler, config]).
+-define(DEPS, [couch_stats, couch_log, config]).
 
 
 setup() ->
@@ -257,8 +256,8 @@ should_return_any_supported_default() ->
 should_update_option() ->
     ?_assertEqual("severe",
         begin
-            ok = config:set("log", "level", "severe", false),
-            config:get("log", "level")
+            ok = config:set("mock_log", "level", "severe", false),
+            config:get("mock_log", "level")
         end).
 
 should_create_new_section() ->
@@ -276,8 +275,8 @@ should_fail_to_set_binary_value() ->
 should_return_undefined_atom_after_option_deletion() ->
     ?_assertEqual(undefined,
         begin
-            ok = config:delete("log", "level", false),
-            config:get("log", "level")
+            ok = config:delete("mock_log", "level", false),
+            config:get("mock_log", "level")
         end).
 
 should_be_ok_on_deleting_unknown_options() ->
