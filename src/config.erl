@@ -186,7 +186,7 @@ listen_for_changes(CallbackModule, InitialState) ->
     gen_server:call(?MODULE, {listen_for_changes, CallbackModule, InitialState}).
 
 init(IniFiles) ->
-    ets:new(?MODULE, [named_table, set, protected]),
+    ets:new(?MODULE, [named_table, set, protected, {read_concurrency, true}]),
     lists:map(fun(IniFile) ->
         {ok, ParsedIniValues} = parse_ini_file(IniFile),
         ets:insert(?MODULE, ParsedIniValues)
