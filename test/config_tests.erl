@@ -28,6 +28,10 @@
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_1.ini"])).
 -define(CONFIG_FIXTURE_2,
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_2.ini"])).
+-define(CONFIG_DEFAULT_D,
+        filename:join([?CONFIG_FIXTURESDIR, "default.d"])).
+-define(CONFIG_LOCAL_D,
+        filename:join([?CONFIG_FIXTURESDIR, "local.d"])).
 -define(CONFIG_FIXTURE_TEMP,
     begin
         FileName = filename:join([?TEMPDIR, "config_temp.ini"]),
@@ -159,6 +163,14 @@ config_override_tests() ->
                  fun should_ensure_in_defaults/2},
                 {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_1]},
                  fun should_override_options/2},
+                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_1]},
+                 fun should_override_options/2},
+                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_DEFAULT_D]},
+                 fun(_, _) -> ?_assertEqual("11", config:get("couchdb", "max_dbs_open")) end},
+                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_LOCAL_D]},
+                 fun(_, _) -> ?_assertEqual("12", config:get("couchdb", "max_dbs_open")) end},
+                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_DEFAULT_D, ?CONFIG_LOCAL_D]},
+                 fun(_, _) -> ?_assertEqual("12", config:get("couchdb", "max_dbs_open")) end},
                 {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_2]},
                  fun should_create_new_sections_on_override/2},
                 {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_1,
