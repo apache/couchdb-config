@@ -100,6 +100,9 @@ handle_config_change("update_state", Key, Value, Persist, {Pid, State}) ->
     Pid ! {config_msg, {{"update_state", Key, Value, Persist}, State}},
     {ok, {Pid, Key}};
 
+handle_config_change("throw_error", _Key, _Value, _Persist, {_Pid, _State}) ->
+    throw(this_is_an_error);
+
 handle_config_change(Section, Key, Value, Persist, {Pid, State}) ->
     Pid ! {config_msg, {{Section, Key, Value, Persist}, State}},
     {ok, {Pid, State}}.
@@ -241,7 +244,9 @@ config_listener_behaviour_test_() ->
                 fun should_pass_correct_state_to_handle_config_terminate/1,
                 fun should_pass_subscriber_pid_to_handle_config_terminate/1,
                 fun should_not_call_handle_config_after_related_process_death/1,
-                fun should_remove_handler_when_requested/1
+                fun should_remove_handler_when_requested/1,
+                fun should_remove_handler_when_pid_exits/1,
+                fun should_stop_monitor_on_error/1
             ]
         }
     }.
@@ -452,6 +457,62 @@ should_remove_handler_when_requested(Pid) ->
         ?assertEqual(2, n_handlers()),
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
         ?assertEqual({Pid, remove_handler, undefined}, getmsg(Pid)),
+        ?assertEqual(1, n_handlers())
+    end).
+
+
+should_remove_handler_when_pid_exits(Pid) ->
+    ?_test(begin
+        ?assertEqual(2, n_handlers()),
+
+        % Monitor the config_listener_mon process
+        {monitored_by, [Mon]} = process_info(Pid, monitored_by),
+        MonRef = erlang:monitor(process, Mon),
+
+        % Kill the process synchronously
+        PidRef = erlang:monitor(process, Pid),
+        exit(Pid, kill),
+        receive
+            {'DOWN', PidRef, _, _, _} -> ok
+        after ?TIMEOUT ->
+            erlang:error({timeout, config_listener_death})
+        end,
+
+        % Wait for the config_listener_mon process to
+        % exit to indicate the handler has been removed.
+        receive
+            {'DOWN', MonRef, _, _, normal} -> ok
+        after ?TIMEOUT ->
+            erlang:error({timeout, config_listener_mon_death})
+        end,
+
+        ?assertEqual(1, n_handlers())
+    end).
+
+
+should_stop_monitor_on_error(Pid) ->
+    ?_test(begin
+        ?assertEqual(2, n_handlers()),
+
+        % Monitor the config_listener_mon process
+        {monitored_by, [Mon]} = process_info(Pid, monitored_by),
+        MonRef = erlang:monitor(process, Mon),
+
+        % Have the process throw an error
+        ?assertEqual(ok, config:set("throw_error", "foo", "bar", false)),
+
+        % Make sure handle_config_terminate is called
+        ?assertEqual({Pid, {error, this_is_an_error}, undefined}, getmsg(Pid)),
+
+        % Wait for the config_listener_mon process to
+        % exit to indicate the handler has been removed
+        % due to an error
+        receive
+            {'DOWN', MonRef, _, _, shutdown} -> ok
+        after ?TIMEOUT ->
+            erlang:error({timeout, config_listener_mon_shutdown})
+        end,
+
         ?assertEqual(1, n_handlers())
     end).
 
