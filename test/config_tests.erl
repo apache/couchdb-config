@@ -454,16 +454,16 @@ should_not_call_handle_config_after_related_process_death(Pid) ->
 
 should_remove_handler_when_requested(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
         ?assertEqual({Pid, remove_handler, undefined}, getmsg(Pid)),
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
     end).
 
 
 should_remove_handler_when_pid_exits(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
 
         % Monitor the config_listener_mon process
         {monitored_by, [Mon]} = process_info(Pid, monitored_by),
@@ -486,13 +486,13 @@ should_remove_handler_when_pid_exits(Pid) ->
             erlang:error({timeout, config_listener_mon_death})
         end,
 
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
     end).
 
 
 should_stop_monitor_on_error(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
 
         % Monitor the config_listener_mon process
         {monitored_by, [Mon]} = process_info(Pid, monitored_by),
@@ -513,7 +513,7 @@ should_stop_monitor_on_error(Pid) ->
             erlang:error({timeout, config_listener_mon_shutdown})
         end,
 
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
     end).
 
 
@@ -572,4 +572,5 @@ getmsg(Pid) ->
 
 
 n_handlers() ->
-    length(gen_event:which_handlers(config_event)).
+    Handlers = gen_event:which_handlers(config_event),
+    length([Pid || {config_listener, {?MODULE, Pid}} <- Handlers]).
