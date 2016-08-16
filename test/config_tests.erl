@@ -93,7 +93,7 @@ teardown(_, _) ->
     teardown(undefined).
 
 
-handle_config_change("remove_handler", _Key, _Value, _Persist, {Pid, _State}) ->
+handle_config_change("remove_handler", _Key, _Value, _Persist, {_Pid, _State}) ->
     remove_handler;
 
 handle_config_change("update_state", Key, Value, Persist, {Pid, State}) ->
