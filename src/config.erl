@@ -32,6 +32,7 @@
 -export([get_boolean/3, set_boolean/3]).
 
 -export([listen_for_changes/2]).
+-export([subscribe_for_changes/1]).
 -export([parse_ini_file/1]).
 
 -export([init/1, terminate/2, code_change/3]).
@@ -184,6 +185,9 @@ delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
 
 listen_for_changes(CallbackModule, InitialState) ->
     config_listener_mon:subscribe(CallbackModule, InitialState).
+
+subscribe_for_changes(Subscription) ->
+    config_notifier:subscribe(Subscription).
 
 
 init(IniFiles) ->
