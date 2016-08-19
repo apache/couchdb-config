@@ -589,7 +589,7 @@ should_unsubscribe_when_subscriber_gone(_Subscription, Pid) ->
 spawn_config_listener() ->
     Self = self(),
     Pid = erlang:spawn(fun() ->
-        ok = config:listen_for_changes(?MODULE, {self(), undefined}),
+        {ok, _} = config:listen_for_changes(?MODULE, {self(), undefined}),
         Self ! registered,
         loop(undefined)
     end),

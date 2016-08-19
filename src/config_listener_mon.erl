@@ -44,7 +44,7 @@ init({Pid, Mod, InitSt}) ->
     Ref = erlang:monitor(process, Pid),
     case config_listener:start(Mod, {Mod, Pid}, {Pid, InitSt}) of
         ok ->
-            proc_lib:init_ack(ok),
+            proc_lib:init_ack({ok, self()}),
             gen_server:enter_loop(?MODULE, [], #st{pid = Pid, ref = Ref});
         Else ->
             proc_lib:init_ack(Else)
