@@ -271,7 +271,8 @@ config_notifier_behaviour_test_() ->
                 {[{"section_foo", "key_bar"}], fun should_notify/2},
                 {["section_foo"], fun should_not_notify/2},
                 {[{"section_foo", "key_bar"}], fun should_not_notify/2},
-                {all, fun should_unsubscribe_when_subscriber_gone/2}
+                {all, fun should_unsubscribe_when_subscriber_gone/2},
+                {all, fun should_not_add_duplicate/2}
             ]
         }
     }.
@@ -582,6 +583,20 @@ should_unsubscribe_when_subscriber_gone(_Subscription, Pid) ->
         ?assertNot(is_process_alive(Pid)),
 
         ?assertEqual(0, n_notifiers()),
+        ok
+    end).
+
+should_not_add_duplicate(_, _) ->
+    ?_test(begin
+        ?assertEqual(1, n_notifiers()), %% spawned from setup
+
+        ?assertMatch(ok, config:subscribe_for_changes(all)),
+
+        ?assertEqual(2, n_notifiers()),
+
+        ?assertMatch(ok, config:subscribe_for_changes(all)),
+
+        ?assertEqual(2, n_notifiers()),
         ok
     end).
 

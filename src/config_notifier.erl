@@ -33,8 +33,13 @@ subscribe(Subscription) ->
     subscribe(self(), Subscription).
 
 subscribe(Subscriber, Subscription) ->
-    gen_event:add_sup_handler(
-        config_event, {?MODULE, Subscriber}, {Subscriber, Subscription}).
+    case lists:member(Subscriber, handlers()) of
+        true ->
+            ok;
+        false ->
+            gen_event:add_sup_handler(
+                config_event, {?MODULE, Subscriber}, {Subscriber, Subscription})
+    end.
 
 init({Subscriber, Subscription}) ->
     {ok, {Subscriber, Subscription}}.
@@ -66,3 +71,7 @@ maybe_notify({config_change, Sec, Key, _, _} = Event, Subscriber, Subscription) 
 
 should_notify(Sec, Key, Subscription) ->
     lists:any(fun(S) -> S =:= Sec orelse S =:= {Sec, Key} end, Subscription).
+
+handlers() ->
+    AllHandlers = gen_event:which_handlers(config_event),
+    [Id || {?MODULE, Id} <- AllHandlers].
