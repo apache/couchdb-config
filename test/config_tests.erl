@@ -80,6 +80,10 @@ setup_config_listener() ->
     setup(),
     spawn_config_listener().
 
+setup_config_notifier(Subscription) ->
+    setup(),
+    spawn_config_notifier(Subscription).
+
 
 teardown(Pid) when is_pid(Pid) ->
     catch exit(Pid, kill),
@@ -88,12 +92,14 @@ teardown(Pid) when is_pid(Pid) ->
 teardown(_) ->
     [application:stop(App) || App <- ?DEPS].
 
-
+teardown(_, Pid) when is_pid(Pid) ->
+    catch exit(Pid, kill),
+    teardown(undefined);
 teardown(_, _) ->
     teardown(undefined).
 
 
-handle_config_change("remove_handler", _Key, _Value, _Persist, {Pid, _State}) ->
+handle_config_change("remove_handler", _Key, _Value, _Persist, {_Pid, _State}) ->
     remove_handler;
 
 handle_config_change("update_state", Key, Value, Persist, {Pid, State}) ->
@@ -247,6 +253,26 @@ config_listener_behaviour_test_() ->
                 fun should_remove_handler_when_requested/1,
                 fun should_remove_handler_when_pid_exits/1,
                 fun should_stop_monitor_on_error/1
+            ]
+        }
+    }.
+
+config_notifier_behaviour_test_() ->
+    {
+        "Test config_notifier behaviour",
+        {
+            foreachx,
+            local,
+            fun setup_config_notifier/1,
+            fun teardown/2,
+            [
+                {all, fun should_notify/2},
+                {["section_foo"], fun should_notify/2},
+                {[{"section_foo", "key_bar"}], fun should_notify/2},
+                {["section_foo"], fun should_not_notify/2},
+                {[{"section_foo", "key_bar"}], fun should_not_notify/2},
+                {all, fun should_unsubscribe_when_subscriber_gone/2},
+                {all, fun should_not_add_duplicate/2}
             ]
         }
     }.
@@ -454,16 +480,16 @@ should_not_call_handle_config_after_related_process_death(Pid) ->
 
 should_remove_handler_when_requested(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
         ?assertEqual({Pid, remove_handler, undefined}, getmsg(Pid)),
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
     end).
 
 
 should_remove_handler_when_pid_exits(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
 
         % Monitor the config_listener_mon process
         {monitored_by, [Mon]} = process_info(Pid, monitored_by),
@@ -486,13 +512,13 @@ should_remove_handler_when_pid_exits(Pid) ->
             erlang:error({timeout, config_listener_mon_death})
         end,
 
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
     end).
 
 
 should_stop_monitor_on_error(Pid) ->
     ?_test(begin
-        ?assertEqual(2, n_handlers()),
+        ?assertEqual(1, n_handlers()),
 
         % Monitor the config_listener_mon process
         {monitored_by, [Mon]} = process_info(Pid, monitored_by),
@@ -513,14 +539,86 @@ should_stop_monitor_on_error(Pid) ->
             erlang:error({timeout, config_listener_mon_shutdown})
         end,
 
-        ?assertEqual(1, n_handlers())
+        ?assertEqual(0, n_handlers())
+    end).
+
+should_notify(Subscription, Pid) ->
+    {to_string(Subscription), ?_test(begin
+        ?assertEqual(ok, config:set("section_foo", "key_bar", "any", false)),
+        ?assertEqual({config_change,"section_foo", "key_bar", "any", false}, getmsg(Pid)),
+        ok
+    end)}.
+
+should_not_notify([{Section, _}] = Subscription, Pid) ->
+    {to_string(Subscription), ?_test(begin
+        ?assertEqual(ok, config:set(Section, "any", "any", false)),
+        ?assertError({timeout, config_msg}, getmsg(Pid)),
+        ok
+    end)};
+should_not_notify(Subscription, Pid) ->
+    {to_string(Subscription), ?_test(begin
+        ?assertEqual(ok, config:set("any", "any", "any", false)),
+        ?assertError({timeout, config_msg}, getmsg(Pid)),
+        ok
+    end)}.
+
+should_unsubscribe_when_subscriber_gone(_Subscription, Pid) ->
+    ?_test(begin
+        ?assertEqual(1, n_notifiers()),
+
+        ?assert(is_process_alive(Pid)),
+
+        % Monitor subscriber process
+        MonRef = erlang:monitor(process, Pid),
+
+        exit(Pid, kill),
+
+        % Wait for the subscriber process to exit
+        receive
+            {'DOWN', MonRef, _, _, _} -> ok
+        after ?TIMEOUT ->
+            erlang:error({timeout, config_notifier_shutdown})
+        end,
+
+        ?assertNot(is_process_alive(Pid)),
+
+        ?assertEqual(0, n_notifiers()),
+        ok
+    end).
+
+should_not_add_duplicate(_, _) ->
+    ?_test(begin
+        ?assertEqual(1, n_notifiers()), %% spawned from setup
+
+        ?assertMatch(ok, config:subscribe_for_changes(all)),
+
+        ?assertEqual(2, n_notifiers()),
+
+        ?assertMatch(ok, config:subscribe_for_changes(all)),
+
+        ?assertEqual(2, n_notifiers()),
+        ok
     end).
 
 
 spawn_config_listener() ->
     Self = self(),
     Pid = erlang:spawn(fun() ->
-        ok = config:listen_for_changes(?MODULE, {self(), undefined}),
+        {ok, _} = config:listen_for_changes(?MODULE, {self(), undefined}),
+        Self ! registered,
+        loop(undefined)
+    end),
+    receive
+        registered -> ok
+    after ?TIMEOUT ->
+        erlang:error({timeout, config_handler_register})
+    end,
+    Pid.
+
+spawn_config_notifier(Subscription) ->
+    Self = self(),
+    Pid = erlang:spawn(fun() ->
+        ok = config:subscribe_for_changes(Subscription),
         Self ! registered,
         loop(undefined)
     end),
@@ -536,6 +634,8 @@ loop(undefined) ->
     receive
         {config_msg, _} = Msg ->
             loop(Msg);
+        {config_change, _, _, _, _} = Msg ->
+            loop({config_msg, Msg});
         {get_msg, _, _} = Msg ->
             loop(Msg);
         Msg ->
@@ -545,6 +645,8 @@ loop(undefined) ->
 loop({get_msg, From, Ref}) ->
     receive
         {config_msg, _} = Msg ->
+            From ! {Ref, Msg};
+        {config_change, _, _, _, _} = Msg ->
             From ! {Ref, Msg};
         Msg ->
             erlang:error({invalid_message, Msg})
@@ -572,4 +674,12 @@ getmsg(Pid) ->
 
 
 n_handlers() ->
-    length(gen_event:which_handlers(config_event)).
+    Handlers = gen_event:which_handlers(config_event),
+    length([Pid || {config_listener, {?MODULE, Pid}} <- Handlers]).
+
+n_notifiers() ->
+    Handlers = gen_event:which_handlers(config_event),
+    length([Pid || {config_notifier, Pid} <- Handlers]).
+
+to_string(Term) ->
+    lists:flatten(io_lib:format("~p", [Term])).
