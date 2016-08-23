@@ -16,7 +16,8 @@
 
 
 -export([
-    subscribe/2
+    subscribe/2,
+    start_link/2
 ]).
 
 
@@ -36,9 +37,14 @@
 }).
 
 
-subscribe(Module, InitSt) ->
-    proc_lib:start(?MODULE, init, [{self(), Module, InitSt}]).
+start_link(Module, InitSt) ->
+    proc_lib:start_link(?MODULE, init, [{self(), Module, InitSt}]).
 
+subscribe(Module, InitSt) ->
+    case proc_lib:start(?MODULE, init, [{self(), Module, InitSt}]) of
+        {ok, _} -> ok;
+        Else -> Else
+    end.
 
 init({Pid, Mod, InitSt}) ->
     Ref = erlang:monitor(process, Pid),

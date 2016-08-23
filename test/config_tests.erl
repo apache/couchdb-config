@@ -604,7 +604,7 @@ should_not_add_duplicate(_, _) ->
 spawn_config_listener() ->
     Self = self(),
     Pid = erlang:spawn(fun() ->
-        {ok, _} = config:listen_for_changes(?MODULE, {self(), undefined}),
+        ok = config:listen_for_changes(?MODULE, {self(), undefined}),
         Self ! registered,
         loop(undefined)
     end),
