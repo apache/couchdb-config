@@ -45,7 +45,8 @@ init({Subscriber, Subscription}) ->
     {ok, {Subscriber, Subscription}}.
 
 handle_event({config_change, _, _, _, _} = Event, {Subscriber, Subscription}) ->
-    maybe_notify(Event, Subscriber, Subscription).
+    maybe_notify(Event, Subscriber, Subscription),
+    {ok, {Subscriber, Subscription}}.
 
 handle_call(_Request, St) ->
     {ok, ignored, St}.
