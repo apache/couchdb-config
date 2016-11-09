@@ -172,6 +172,22 @@ config_del_test_() ->
     }.
 
 
+config_features_test_() ->
+    {
+        "Config features tests",
+        {
+            foreach,
+            fun setup/0,
+            fun teardown/1,
+            [
+                fun should_enable_features/0,
+                fun should_disable_features/0
+            ]
+        }
+    }.
+
+
+
 config_override_test_() ->
     {
         "Configs overide tests",
@@ -599,6 +615,32 @@ should_not_add_duplicate(_, _) ->
         ?assertEqual(2, n_notifiers()),
         ok
     end).
+
+
+should_enable_features() ->
+    ?assertEqual([], config:features()),
+
+    ?assertEqual(ok, config:enable_feature(snek)),
+    ?assertEqual([snek], config:features()),
+
+    ?assertEqual(ok, config:enable_feature(snek)),
+    ?assertEqual([snek], config:features()),
+
+    ?assertEqual(ok, config:enable_feature(dogo)),
+    ?assertEqual([dogo, snek], config:features()).
+
+
+should_disable_features() ->
+    ?assertEqual([], config:features()),
+
+    config:enable_feature(snek),
+    ?assertEqual([snek], config:features()),
+
+    ?assertEqual(ok, config:disable_feature(snek)),
+    ?assertEqual([], config:features()),
+
+    ?assertEqual(ok, config:disable_feature(snek)),
+    ?assertEqual([], config:features()).
 
 
 spawn_config_listener() ->

@@ -31,12 +31,16 @@
 -export([get_float/3, set_float/3]).
 -export([get_boolean/3, set_boolean/3]).
 
+-export([features/0, enable_feature/1, disable_feature/1]).
+
 -export([listen_for_changes/2]).
 -export([subscribe_for_changes/1]).
 -export([parse_ini_file/1]).
 
 -export([init/1, terminate/2, code_change/3]).
 -export([handle_call/3, handle_cast/2, handle_info/2]).
+
+-define(FEATURES, "features").
 
 -record(config, {
     notify_funs=[],
@@ -181,6 +185,18 @@ delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
 delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
     gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
+
+
+features() ->
+    lists:usort([list_to_atom(Key) || {Key, "true"} <- ?MODULE:get(?FEATURES)]).
+
+
+enable_feature(Feature) when is_atom(Feature) ->
+    ?MODULE:set(?FEATURES, atom_to_list(Feature), "true", false).
+
+
+disable_feature(Feature) when is_atom(Feature) ->
+    ?MODULE:delete(?FEATURES, atom_to_list(Feature), false).
 
 
 listen_for_changes(CallbackModule, InitialState) ->
