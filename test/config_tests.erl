@@ -50,8 +50,6 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, config]).
-
 
 -define(T(F), {erlang:fun_to_list(F), F}).
 -define(FEXT(F), fun(_, _) -> F() end).
@@ -69,7 +67,7 @@ setup({persistent, Chain}) ->
 
 setup(Chain) ->
     ok = application:set_env(config, ini_files, Chain),
-    test_util:start_applications(?DEPS).
+    test_util:start_applications([config]).
 
 
 setup_empty() ->
