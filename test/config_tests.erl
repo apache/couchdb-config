@@ -50,8 +50,6 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, config]).
-
 
 -define(T(F), {erlang:fun_to_list(F), F}).
 -define(FEXT(F), fun(_, _) -> F() end).
@@ -69,7 +67,7 @@ setup({persistent, Chain}) ->
 
 setup(Chain) ->
     ok = application:set_env(config, ini_files, Chain),
-    test_util:start_applications(?DEPS).
+    test_util:start_applications([config]).
 
 
 setup_empty() ->
@@ -77,26 +75,28 @@ setup_empty() ->
 
 
 setup_config_listener() ->
-    setup(),
-    spawn_config_listener().
+    Apps = setup(),
+    Pid = spawn_config_listener(),
+    {Apps, Pid}.
 
 setup_config_notifier(Subscription) ->
-    setup(),
-    spawn_config_notifier(Subscription).
+    Apps = setup(),
+    Pid = spawn_config_notifier(Subscription),
+    {Apps, Pid}.
 
 
-teardown(Pid) when is_pid(Pid) ->
+teardown({Apps, Pid}) when is_pid(Pid) ->
     catch exit(Pid, kill),
-    teardown(undefined);
+    teardown(Apps);
 
-teardown(_) ->
-    [application:stop(App) || App <- ?DEPS].
+teardown(Apps) when is_list(Apps) ->
+    test_util:stop_applications(Apps).
 
-teardown(_, Pid) when is_pid(Pid) ->
+teardown(_, {Apps, Pid}) when is_pid(Pid) ->
     catch exit(Pid, kill),
-    teardown(undefined);
-teardown(_, _) ->
-    teardown(undefined).
+    teardown(Apps);
+teardown(_, Apps) ->
+    teardown(Apps).
 
 
 handle_config_change("remove_handler", _Key, _Value, _Persist, {_Pid, _State}) ->
@@ -447,14 +447,14 @@ should_create_persistent_option() ->
     end).
 
 
-should_handle_value_change(Pid) ->
+should_handle_value_change({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(ok, config:set("httpd", "port", "80", false)),
         ?assertMatch({{"httpd", "port", "80", false}, _}, getmsg(Pid))
     end).
 
 
-should_pass_correct_state_to_handle_config_change(Pid) ->
+should_pass_correct_state_to_handle_config_change({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(ok, config:set("update_state", "foo", "any", false)),
         ?assertMatch({_, undefined}, getmsg(Pid)),
@@ -463,7 +463,7 @@ should_pass_correct_state_to_handle_config_change(Pid) ->
     end).
 
 
-should_pass_correct_state_to_handle_config_terminate(Pid) ->
+should_pass_correct_state_to_handle_config_terminate({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(ok, config:set("update_state", "foo", "any", false)),
         ?assertMatch({_, undefined}, getmsg(Pid)),
@@ -474,14 +474,14 @@ should_pass_correct_state_to_handle_config_terminate(Pid) ->
     end).
 
 
-should_pass_subscriber_pid_to_handle_config_terminate(Pid) ->
+should_pass_subscriber_pid_to_handle_config_terminate({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
         ?assertEqual({Pid, remove_handler, undefined}, getmsg(Pid))
     end).
 
 
-should_not_call_handle_config_after_related_process_death(Pid) ->
+should_not_call_handle_config_after_related_process_death({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
         ?assertEqual({Pid, remove_handler, undefined}, getmsg(Pid)),
@@ -494,7 +494,7 @@ should_not_call_handle_config_after_related_process_death(Pid) ->
     end).
 
 
-should_remove_handler_when_requested(Pid) ->
+should_remove_handler_when_requested({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(1, n_handlers()),
         ?assertEqual(ok, config:set("remove_handler", "any", "any", false)),
@@ -503,7 +503,7 @@ should_remove_handler_when_requested(Pid) ->
     end).
 
 
-should_remove_handler_when_pid_exits(Pid) ->
+should_remove_handler_when_pid_exits({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(1, n_handlers()),
 
@@ -532,7 +532,7 @@ should_remove_handler_when_pid_exits(Pid) ->
     end).
 
 
-should_stop_monitor_on_error(Pid) ->
+should_stop_monitor_on_error({_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(1, n_handlers()),
 
@@ -558,27 +558,27 @@ should_stop_monitor_on_error(Pid) ->
         ?assertEqual(0, n_handlers())
     end).
 
-should_notify(Subscription, Pid) ->
+should_notify(Subscription, {_Apps, Pid}) ->
     {to_string(Subscription), ?_test(begin
         ?assertEqual(ok, config:set("section_foo", "key_bar", "any", false)),
         ?assertEqual({config_change,"section_foo", "key_bar", "any", false}, getmsg(Pid)),
         ok
     end)}.
 
-should_not_notify([{Section, _}] = Subscription, Pid) ->
+should_not_notify([{Section, _}] = Subscription, {_Apps, Pid}) ->
     {to_string(Subscription), ?_test(begin
         ?assertEqual(ok, config:set(Section, "any", "any", false)),
         ?assertError({timeout, config_msg}, getmsg(Pid)),
         ok
     end)};
-should_not_notify(Subscription, Pid) ->
+should_not_notify(Subscription, {_Apps, Pid}) ->
     {to_string(Subscription), ?_test(begin
         ?assertEqual(ok, config:set("any", "any", "any", false)),
         ?assertError({timeout, config_msg}, getmsg(Pid)),
         ok
     end)}.
 
-should_unsubscribe_when_subscriber_gone(_Subscription, Pid) ->
+should_unsubscribe_when_subscriber_gone(_Subscription, {_Apps, Pid}) ->
     ?_test(begin
         ?assertEqual(1, n_notifiers()),
 
