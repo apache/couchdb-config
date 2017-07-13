@@ -66,6 +66,10 @@ setup({persistent, Chain}) ->
     setup(Chain ++ [?CONFIG_FIXTURE_TEMP]);
 
 setup(Chain) ->
+    meck:new(couch_log),
+    meck:expect(couch_log, error, fun(_, _) -> ok end),
+    meck:expect(couch_log, notice, fun(_, _) -> ok end),
+    meck:expect(couch_log, debug, fun(_, _) -> ok end),
     ok = application:set_env(config, ini_files, Chain),
     test_util:start_applications([config]).
 
@@ -90,6 +94,7 @@ teardown({Apps, Pid}) when is_pid(Pid) ->
     teardown(Apps);
 
 teardown(Apps) when is_list(Apps) ->
+    meck:unload(),
     test_util:stop_applications(Apps).
 
 teardown(_, {Apps, Pid}) when is_pid(Pid) ->
