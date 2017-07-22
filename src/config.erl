@@ -42,6 +42,8 @@
 
 -define(FEATURES, "features").
 
+-define(TIMEOUT, 30000).
+
 -record(config, {
     notify_funs=[],
     ini_files=undefined,
@@ -57,7 +59,7 @@ stop() ->
 
 
 reload() ->
-    gen_server:call(?MODULE, reload).
+    gen_server:call(?MODULE, reload, ?TIMEOUT).
 
 all() ->
     lists:sort(gen_server:call(?MODULE, all, infinity)).
@@ -166,7 +168,8 @@ set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
 set(Section, Key, Value, Persist, Reason)
         when is_list(Section), is_list(Key), is_list(Value) ->
-    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason});
+    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason},
+        ?TIMEOUT);
 set(_Sec, _Key, _Val, _Persist, _Reason) ->
     error(badarg).
 
@@ -184,7 +187,8 @@ delete(Section, Key, Reason) ->
 delete(Sec, Key, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
     delete(binary_to_list(Sec), binary_to_list(Key), Persist, Reason);
 delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
-    gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason}).
+    gen_server:call(?MODULE, {delete, Section, Key, Persist, Reason},
+        ?TIMEOUT).
 
 
 features() ->
