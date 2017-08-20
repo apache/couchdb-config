@@ -366,7 +366,7 @@ should_be_ok_on_deleting_unknown_options() ->
 
 should_ensure_in_defaults(_, _) ->
     ?_test(begin
-        ?assertEqual("500", config:get("couchdb", "max_dbs_open")),
+        ?assertEqual("100", config:get("couchdb", "max_dbs_open")),
         ?assertEqual("5986", config:get("httpd", "port")),
         ?assertEqual(undefined, config:get("fizbang", "unicode"))
     end).
