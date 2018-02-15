@@ -19,17 +19,27 @@
 -export([start/2]).
 -export([start/3]).
 
--export([behaviour_info/1]).
-
 %% Required gen_event interface
 -export([init/1, handle_event/2, handle_call/2, handle_info/2, terminate/2,
     code_change/3]).
 
-behaviour_info(callbacks) ->
-    [{handle_config_change,5},
-     {handle_config_terminate, 3}];
-behaviour_info(_) ->
-    undefined.
+
+-callback handle_config_change(
+    Sec :: string(),
+    Key :: string(),
+    Value :: string(),
+    Persist :: boolean(),
+    State :: term()
+) ->
+    {ok, term()} | remove_handler.
+
+-callback handle_config_terminate(
+    Subscriber :: pid(),
+    Reason :: term(),
+    State :: term()
+) ->
+    term().
+
 
 start(Module, State) ->
     start(Module, Module, State).
