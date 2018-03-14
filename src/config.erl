@@ -27,9 +27,9 @@
 -export([set/3, set/4, set/5]).
 -export([delete/2, delete/3, delete/4]).
 
--export([get_integer/3, set_integer/3]).
--export([get_float/3, set_float/3]).
--export([get_boolean/3, set_boolean/3]).
+-export([get_integer/3, set_integer/3, set_integer/4]).
+-export([get_float/3, set_float/3, set_float/4]).
+-export([get_boolean/3, set_boolean/3, set_boolean/4]).
 
 -export([features/0, enable_feature/1, disable_feature/1]).
 
@@ -72,9 +72,12 @@ get_integer(Section, Key, Default) when is_integer(Default) ->
             Default
     end.
 
-set_integer(Section, Key, Value) when is_integer(Value) ->
-    set(Section, Key, integer_to_list(Value));
-set_integer(_, _, _) ->
+set_integer(Section, Key, Value) ->
+    set_integer(Section, Key, Value, true).
+
+set_integer(Section, Key, Value, Persist) when is_integer(Value) ->
+    set(Section, Key, integer_to_list(Value), Persist);
+set_integer(_, _, _, _) ->
     error(badarg).
 
 to_integer(List) when is_list(List) ->
@@ -92,9 +95,12 @@ get_float(Section, Key, Default) when is_float(Default) ->
             Default
     end.
 
-set_float(Section, Key, Value) when is_float(Value) ->
-    set(Section, Key, float_to_list(Value));
-set_float(_, _, _) ->
+set_float(Section, Key, Value) ->
+    set_float(Section, Key, Value, true).
+
+set_float(Section, Key, Value, Persist) when is_float(Value) ->
+    set(Section, Key, float_to_list(Value), Persist);
+set_float(_, _, _, _) ->
     error(badarg).
 
 to_float(List) when is_list(List) ->
@@ -114,11 +120,14 @@ get_boolean(Section, Key, Default) when is_boolean(Default) ->
             Default
     end.
 
-set_boolean(Section, Key, true) ->
-    set(Section, Key, "true");
-set_boolean(Section, Key, false) ->
-    set(Section, Key, "false");
-set_boolean(_, _, _) ->
+set_boolean(Section, Key, Value) ->
+    set_boolean(Section, Key, Value, true).
+
+set_boolean(Section, Key, true, Persist) ->
+    set(Section, Key, "true", Persist);
+set_boolean(Section, Key, false, Persist) ->
+    set(Section, Key, "false", Persist);
+set_boolean(_, _, _, _) ->
     error(badarg).
 
 to_boolean(List) when is_list(List) ->
