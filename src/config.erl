@@ -43,6 +43,9 @@
 -define(FEATURES, "features").
 
 -define(TIMEOUT, 30000).
+-define(INVALID_SECTION, <<"Invalid configuration section">>).
+-define(INVALID_KEY, <<"Invalid configuration key">>).
+-define(INVALID_VALUE, <<"Invalid configuration value">>).
 
 -record(config, {
     notify_funs=[],
@@ -241,20 +244,28 @@ handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
 handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
-    true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
-        [?MODULE, Sec, Key, Val, Reason]),
-    case {Persist, Config#config.write_filename} of
-        {true, undefined} ->
-            ok;
-        {true, FileName} ->
-            config_writer:save_to_file({{Sec, Key}, Val}, FileName);
-        _ ->
-            ok
-    end,
-    Event = {config_change, Sec, Key, Val, Persist},
-    gen_event:sync_notify(config_event, Event),
-    {reply, ok, Config};
+    case validate_config_update(Sec, Key, Val) of
+        {error, ValidationError} ->
+            couch_log:error("~p: [~s] ~s = '~s' rejected for reason ~p",
+                             [?MODULE, Sec, Key, Val, Reason]),
+            {reply, {error, ValidationError}, Config};
+        ok ->
+            true = ets:insert(?MODULE, {{Sec, Key}, Val}),
+            couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
+                             [?MODULE, Sec, Key, Val, Reason]),
+            case {Persist, Config#config.write_filename} of
+                {true, undefined} ->
+                    ok;
+                {true, FileName} ->
+                    config_writer:save_to_file({{Sec, Key}, Val}, FileName);
+                _ ->
+                    ok
+            end,
+            Event = {config_change, Sec, Key, Val, Persist},
+            gen_event:sync_notify(config_event, Event),
+            {reply, ok, Config}
+    end;
+
 handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
     couch_log:notice("~p: [~s] ~s deleted for reason ~p",
@@ -389,6 +400,33 @@ debug_config() ->
             ok
     end.
 
+
+validate_config_update(Sec, Key, Val) ->
+    %% See https://erlang.org/doc/man/re.html &
+    %% https://pcre.org/original/doc/html/pcrepattern.html
+    %%
+    %%  only characters that are actually screen-visible are allowed
+    %%  tabs and spaces are allowed
+    %%  no  [ ] explicitly to avoid section header bypass
+    {ok, Forbidden} = re:compile("[\]\[]+", [dollar_endonly, unicode]),
+    %% Values are permitted [ ] characters as we use these in
+    %% places like mochiweb socket option lists
+    %% Values may also be empty to delete manual configuration
+    {ok, Printable} = re:compile("^[[:graph:]\t\s]*$",
+                               [dollar_endonly, unicode]),
+    case {re:run(Sec, Printable),
+          re:run(Sec, Forbidden),
+          re:run(Key, Printable),
+          re:run(Key, Forbidden),
+          re:run(Val, Printable)} of
+        {{match, _}, nomatch, {match, _}, nomatch, {match, _}} -> ok;
+        {nomatch, _,    _, _, _} -> {error, ?INVALID_SECTION};
+        {_, {match, _}, _, _, _} -> {error, ?INVALID_SECTION};
+        {_, _, nomatch,    _, _} -> {error, ?INVALID_KEY};
+        {_, _, _, {match, _}, _} -> {error, ?INVALID_KEY};
+        {_, _, _, _, nomatch}    -> {error, ?INVALID_VALUE}
+    end.
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -408,6 +446,39 @@ to_float_test() ->
     ?assertEqual(-1.1, to_float("-01.1")),
     ?assertEqual(0.0, to_float("-0.0")),
     ?assertEqual(0.0, to_float("+0.0")),
+    ok.
+
+validation_test() ->
+    ?assertEqual(ok, validate_config_update("section", "key", "value")),
+    ?assertEqual(ok, validate_config_update("delete", "empty_value", "")),
+    ?assertEqual({error, ?INVALID_SECTION},
+        validate_config_update("sect[ion", "key", "value")),
+    ?assertEqual({error, ?INVALID_SECTION},
+        validate_config_update("sect]ion", "key", "value")),
+    ?assertEqual({error, ?INVALID_SECTION},
+        validate_config_update("section\n", "key", "value")),
+    ?assertEqual({error, ?INVALID_SECTION},
+        validate_config_update("section\r", "key", "value")),
+    ?assertEqual({error, ?INVALID_SECTION},
+        validate_config_update("section\r\n", "key", "value")),
+    ?assertEqual({error, ?INVALID_KEY},
+        validate_config_update("section", "key\n", "value")),
+    ?assertEqual({error, ?INVALID_KEY},
+        validate_config_update("section", "key\r", "value")),
+    ?assertEqual({error, ?INVALID_KEY},
+        validate_config_update("section", "key\r\n", "value")),
+    ?assertEqual({error,?INVALID_VALUE},
+        validate_config_update("section", "key", "value\n")),
+    ?assertEqual({error,?INVALID_VALUE},
+        validate_config_update("section", "key", "value\r")),
+    ?assertEqual({error,?INVALID_VALUE},
+        validate_config_update("section", "key", "value\r\n")),
+    ?assertEqual({error,?INVALID_KEY},
+        validate_config_update("section", "k[ey", "value")),
+    ?assertEqual({error,?INVALID_KEY},
+        validate_config_update("section", "[key", "value")),
+    ?assertEqual({error,?INVALID_KEY},
+        validate_config_update("section", "key]", "value")),
     ok.
 
 -endif.
