@@ -133,8 +133,6 @@ config_get_test_() ->
             fun teardown/1,
             [
                 fun should_load_all_configs/0,
-                fun should_locate_daemons_section/0,
-                fun should_locate_mrview_handler/0,
                 fun should_return_undefined_atom_on_missed_section/0,
                 fun should_return_undefined_atom_on_missed_option/0,
                 fun should_return_custom_default_value_on_missed_option/0,
@@ -301,15 +299,6 @@ config_notifier_behaviour_test_() ->
 
 should_load_all_configs() ->
     ?assert(length(config:all()) > 0).
-
-
-should_locate_daemons_section() ->
-    ?assert(length(config:get("daemons")) > 0).
-
-
-should_locate_mrview_handler() ->
-    Expect = "{couch_mrview_http, handle_view_req}",
-    ?assertEqual(Expect, config:get("httpd_design_handlers", "_view")).
 
 
 should_return_undefined_atom_on_missed_section() ->
