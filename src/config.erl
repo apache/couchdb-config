@@ -253,7 +253,7 @@ handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
             true = ets:insert(?MODULE, {{Sec, Key}, Val}),
             couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
                              [?MODULE, Sec, Key, Val, Reason]),
-            case {Persist, Config#config.write_filename} of
+            ConfigWriteReturn = case {Persist, Config#config.write_filename} of
                 {true, undefined} ->
                     ok;
                 {true, FileName} ->
@@ -261,16 +261,21 @@ handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
                 _ ->
                     ok
             end,
-            Event = {config_change, Sec, Key, Val, Persist},
-            gen_event:sync_notify(config_event, Event),
-            {reply, ok, Config}
+            case ConfigWriteReturn of
+                ok ->
+                    Event = {config_change, Sec, Key, Val, Persist},
+                    gen_event:sync_notify(config_event, Event),
+                    {reply, ok, Config};
+                {error, Else} ->
+                    {reply, {error, Else}, Config}
+            end
     end;
 
 handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
     true = ets:delete(?MODULE, {Sec,Key}),
     couch_log:notice("~p: [~s] ~s deleted for reason ~p",
         [?MODULE, Sec, Key, Reason]),
-    case {Persist, Config#config.write_filename} of
+    ConfigDeleteReturn = case {Persist, Config#config.write_filename} of
         {true, undefined} ->
             ok;
         {true, FileName} ->
@@ -278,9 +283,15 @@ handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
         _ ->
             ok
     end,
-    Event = {config_change, Sec, Key, deleted, Persist},
-    gen_event:sync_notify(config_event, Event),
-    {reply, ok, Config};
+    case ConfigDeleteReturn of
+        ok ->
+            Event = {config_change, Sec, Key, deleted, Persist},
+            gen_event:sync_notify(config_event, Event),
+            {reply, ok, Config};
+        Else ->
+            {reply, Else, Config}
+    end;
+
 handle_call(reload, _From, Config) ->
     DiskKVs = lists:foldl(fun(IniFile, DiskKVs0) ->
         {ok, ParsedIniValues} = parse_ini_file(IniFile),

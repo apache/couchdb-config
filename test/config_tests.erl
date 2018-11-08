@@ -297,6 +297,45 @@ config_notifier_behaviour_test_() ->
     }.
 
 
+config_access_right_test_() ->
+    {
+        "Test config file access right",
+        {
+            foreach,
+            fun setup/0,
+            fun teardown/1,
+            [
+                fun should_write_config_to_file/0,
+                fun should_delete_config_from_file/0,
+                fun should_not_write_config_to_file/0,
+                fun should_not_delete_config_from_file/0
+            ]
+        }
+    }.
+
+
+should_write_config_to_file() ->
+    ?assertEqual(ok, config:set("admins", "foo", "500", true)).
+
+
+should_delete_config_from_file() ->
+    ?assertEqual(ok, config:delete("admins", "foo", true)).
+
+
+should_not_write_config_to_file() ->
+    meck:new(config_writer),
+    meck:expect(config_writer, save_to_file, fun(_, _) -> {error, eacces} end),
+    ?assertEqual({error, eacces}, config:set("admins", "foo", "500", true)),
+    meck:unload(config_writer).
+
+
+should_not_delete_config_from_file() ->
+    meck:new(config_writer),
+    meck:expect(config_writer, save_to_file, fun(_, _) -> {error, eacces} end),
+    ?assertEqual({error, eacces}, config:delete("admins", "foo", true)),
+    meck:unload(config_writer).
+
+
 should_load_all_configs() ->
     ?assert(length(config:all()) > 0).
 
