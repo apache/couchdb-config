@@ -299,7 +299,7 @@ config_notifier_behaviour_test_() ->
 
 config_access_right_test_() ->
     {
-        "Config file access right tests",
+        "Test config file access right",
         {
             foreach,
             fun setup/0,

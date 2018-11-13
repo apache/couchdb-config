@@ -266,8 +266,8 @@ handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
                     Event = {config_change, Sec, Key, Val, Persist},
                     gen_event:sync_notify(config_event, Event),
                     {reply, ok, Config};
-                {error, _Else} ->
-                    {reply, {error, _Else}, Config}
+                {error, Else} ->
+                    {reply, {error, Else}, Config}
             end
     end;
 
@@ -288,8 +288,8 @@ handle_call({delete, Sec, Key, Persist, Reason}, _From, Config) ->
             Event = {config_change, Sec, Key, deleted, Persist},
             gen_event:sync_notify(config_event, Event),
             {reply, ok, Config};
-        _Else ->
-            {reply, _Else, Config}
+        Else ->
+            {reply, Else, Config}
     end;
 
 handle_call(reload, _From, Config) ->
