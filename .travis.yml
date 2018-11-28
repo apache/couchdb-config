@@ -1,0 +1,28 @@
+language: erlang
+
+otp_release:
+  - 18.1
+  - 18.0
+  - 17.5
+  - R16B03-1
+
+sudo: false
+
+addons:
+  apt:
+    packages:
+      - libmozjs185-dev
+
+before_install:
+  - git clone --depth 1 https://github.com/apache/couchdb
+
+before_script:
+  - cd couchdb
+  - ./configure --disable-docs --disable-fauxton
+  - cp -r ../!(couchdb) ./src/config
+  - make
+
+script:
+  - make eunit apps=config
+
+cache: apt

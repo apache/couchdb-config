@@ -75,7 +75,7 @@ to_integer(List) when is_list(List) ->
 to_integer(Int) when is_integer(Int) ->
     Int;
 to_integer(Bin) when is_binary(Bin) ->
-    binary_to_list(list_to_integer(Bin)).
+    list_to_integer(binary_to_list(Bin)).
 
 get_float(Section, Key, Default) when is_float(Default) ->
     try
@@ -95,9 +95,9 @@ to_float(List) when is_list(List) ->
 to_float(Float) when is_float(Float) ->
     Float;
 to_float(Int) when is_integer(Int) ->
-    list_to_float(integer_to_list(Int));
+    list_to_float(integer_to_list(Int) ++ ".0");
 to_float(Bin) when is_binary(Bin) ->
-    binary_to_list(list_to_float(Bin)).
+    list_to_float(binary_to_list(Bin)).
 
 get_boolean(Section, Key, Default) when is_boolean(Default) ->
     try
@@ -146,6 +146,7 @@ get(Section, Key, Default) ->
         [] when is_float(Default) -> Default;
         [] when is_integer(Default) -> Default;
         [] when is_list(Default) -> Default;
+        [] when is_atom(Default) -> Default;
         [] -> error(badarg);
         [{_, Match}] -> Match
     end.
@@ -200,7 +201,7 @@ listen_for_changes(CallbackModule, InitialState) ->
     gen_server:call(?MODULE, {listen_for_changes, CallbackModule, InitialState}).
 
 init(IniFiles) ->
-    ets:new(?MODULE, [named_table, set, protected]),
+    ets:new(?MODULE, [named_table, set, protected, {read_concurrency, true}]),
     lists:map(fun(IniFile) ->
         {ok, ParsedIniValues} = parse_ini_file(IniFile),
         ets:insert(?MODULE, ParsedIniValues)
@@ -381,3 +382,25 @@ debug_config() ->
             ok
     end.
 
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+to_integer_test() ->
+    ?assertEqual(1, to_integer(1)),
+    ?assertEqual(1, to_integer(<<"1">>)),
+    ?assertEqual(1, to_integer("1")),
+    ?assertEqual(-1, to_integer("-01")),
+    ?assertEqual(0, to_integer("-0")),
+    ?assertEqual(0, to_integer("+0")),
+    ok.
+
+to_float_test() ->
+    ?assertEqual(1.0, to_float(1)),
+    ?assertEqual(1.0, to_float(<<"1.0">>)),
+    ?assertEqual(1.0, to_float("1.0")),
+    ?assertEqual(-1.1, to_float("-01.1")),
+    ?assertEqual(0.0, to_float("-0.0")),
+    ?assertEqual(0.0, to_float("+0.0")),
+    ok.
+
+-endif.

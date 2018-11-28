@@ -12,7 +12,7 @@
 
 -module(config_tests).
 
--beahiour(config_listener).
+-behaviour(config_listener).
 
 -export([handle_config_change/5, handle_config_terminate/3]).
 
@@ -37,8 +37,7 @@
         FileName
     end).
 
--define(DEPS, [couch_stats, couch_log, folsom, lager,
-               goldrush, syntax_tools, compiler, config]).
+-define(DEPS, [couch_stats, couch_log, config]).
 
 
 setup() ->
@@ -284,8 +283,8 @@ should_return_any_supported_default() ->
 should_update_option() ->
     ?_assertEqual("severe",
         begin
-            ok = config:set("log", "level", "severe", false),
-            config:get("log", "level")
+            ok = config:set("mock_log", "level", "severe", false),
+            config:get("mock_log", "level")
         end).
 
 should_create_new_section() ->
@@ -313,8 +312,8 @@ should_set_non_latin1_value(_, _) ->
 should_return_undefined_atom_after_option_deletion() ->
     ?_assertEqual(undefined,
         begin
-            ok = config:delete("log", "level", false),
-            config:get("log", "level")
+            ok = config:delete("mock_log", "level", false),
+            config:get("mock_log", "level")
         end).
 
 should_be_ok_on_deleting_unknown_options() ->
@@ -457,13 +456,13 @@ should_not_call_handle_config_after_related_process_death({Pid, _}) ->
     end).
 should_remove_handler_when_requested({Pid, _}) ->
     ?_test(begin
-        ?assertEqual(1, n_handlers()),
+        ?assertEqual(2, n_handlers()),
 
         ok = config:set("remove_handler", "any", "any", false),
         Reply = wait_reply(Pid),
         ?assertMatch({stop, _, remove_handler, _}, Reply),
 
-        ?assertEqual(0, n_handlers())
+        ?assertEqual(1, n_handlers())
     end).
 
 call_sync(Listener, Msg) ->
