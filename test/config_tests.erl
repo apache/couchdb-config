@@ -297,6 +297,20 @@ config_notifier_behaviour_test_() ->
     }.
 
 
+config_key_has_regex_test_() ->
+    {
+        "Test key with regex can be compiled and written to file",
+        {
+            foreach,
+            fun setup/0,
+            fun teardown/1,
+            [
+                fun should_handle_regex_patterns_in_key/0
+            ]
+        }
+    }.
+
+
 config_access_right_test_() ->
     {
         "Test config file access right",
@@ -316,6 +330,11 @@ config_access_right_test_() ->
 
 should_write_config_to_file() ->
     ?assertEqual(ok, config:set("admins", "foo", "500", true)).
+
+
+should_handle_regex_patterns_in_key() ->
+    ?assertEqual(ok, config:set("sect1", "pat||*", "true", true)),
+    ?assertEqual([{"pat||*", "true"}], config:get("sect1")).
 
 
 should_delete_config_from_file() ->

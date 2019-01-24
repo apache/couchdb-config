@@ -1,9 +1,9 @@
 language: erlang
 
 otp_release:
-  - 18.1
-  - 18.0
-  - 17.5
+  - 21.1
+  - 20.3
+  - 19.3
 
 sudo: false
 
