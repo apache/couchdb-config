@@ -204,16 +204,15 @@ delete(Section, Key, Persist, Reason) when is_list(Section), is_list(Key) ->
 
 
 features() ->
-    lists:usort([list_to_atom(Key) || {Key, "true"} <- ?MODULE:get(?FEATURES)]).
-
+    application:get_env(config, enabled_features, []).
 
 enable_feature(Feature) when is_atom(Feature) ->
-    ?MODULE:set(?FEATURES, atom_to_list(Feature), "true", false).
-
+    application:set_env(config, enabled_features,
+        lists:usort([Feature | features()]), [{persistent, true}]).
 
 disable_feature(Feature) when is_atom(Feature) ->
-    ?MODULE:delete(?FEATURES, atom_to_list(Feature), false).
-
+    application:set_env(config, enabled_features,
+        features() -- [Feature], [{persistent, true}]).
 
 listen_for_changes(CallbackModule, InitialState) ->
     config_listener_mon:subscribe(CallbackModule, InitialState).
