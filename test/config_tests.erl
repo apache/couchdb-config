@@ -25,6 +25,7 @@
 
 
 -define(TIMEOUT, 4000).
+-define(RESTART_TIMEOUT_IN_MILLISEC, 3000).
 
 -define(CONFIG_FIXTURESDIR,
         filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
@@ -183,8 +184,9 @@ config_features_test_() ->
             fun setup/0,
             fun teardown/1,
             [
-                fun should_enable_features/0,
-                fun should_disable_features/0
+                {"enable", fun should_enable_features/0},
+                {"disable", fun should_disable_features/0},
+                {"restart config", fun should_keep_features_on_config_restart/0}
             ]
         }
     }.
@@ -670,6 +672,7 @@ should_not_add_duplicate(_, _) ->
 
 
 should_enable_features() ->
+    [config:disable_feature(F) || F <- config:features()],
     ?assertEqual([], config:features()),
 
     ?assertEqual(ok, config:enable_feature(snek)),
@@ -683,6 +686,7 @@ should_enable_features() ->
 
 
 should_disable_features() ->
+    [config:disable_feature(F) || F <- config:features()],
     ?assertEqual([], config:features()),
 
     config:enable_feature(snek),
@@ -694,6 +698,14 @@ should_disable_features() ->
     ?assertEqual(ok, config:disable_feature(snek)),
     ?assertEqual([], config:features()).
 
+should_keep_features_on_config_restart() ->
+    [config:disable_feature(F) || F <- config:features()],
+    ?assertEqual([], config:features()),
+
+    config:enable_feature(snek),
+    ?assertEqual([snek], config:features()),
+    with_process_restart(config),
+    ?assertEqual([snek], config:features()).
 
 spawn_config_listener() ->
     Self = self(),
@@ -777,3 +789,44 @@ n_notifiers() ->
 
 to_string(Term) ->
     lists:flatten(io_lib:format("~p", [Term])).
+
+with_process_restart(Name) ->
+    ok = stop_sync(whereis(Name), ?TIMEOUT),
+    Now = now_us(),
+    wait_process_restart(
+        Name, ?RESTART_TIMEOUT_IN_MILLISEC * 1000, 50, Now, Now).
+
+wait_process_restart(_Name, Timeout, _Delay, Started, Prev)
+        when Prev - Started > Timeout ->
+    timeout;
+wait_process_restart(Name, Timeout, Delay, Started, _Prev) ->
+    case whereis(Name) of
+        undefined ->
+            ok = timer:sleep(Delay),
+            wait_process_restart(Name, Timeout, Delay, Started, now_us());
+        Pid ->
+            Pid
+    end.
+
+stop_sync(Pid, Timeout) when is_pid(Pid) ->
+    MRef = erlang:monitor(process, Pid),
+    try
+        begin
+            catch unlink(Pid),
+            exit(Pid, kill),
+            receive
+            {'DOWN', MRef, _, _, _} ->
+                ok
+            after Timeout ->
+                timeout
+            end
+        end
+    after
+        erlang:demonitor(MRef, [flush])
+    end;
+stop_sync(_, _) -> error(badarg).
+
+
+now_us() ->
+    {MegaSecs, Secs, MicroSecs} = os:timestamp(),
+    (MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs.
