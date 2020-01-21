@@ -293,7 +293,9 @@ config_notifier_behaviour_test_() ->
                 {["section_foo"], fun should_not_notify/2},
                 {[{"section_foo", "key_bar"}], fun should_not_notify/2},
                 {all, fun should_unsubscribe_when_subscriber_gone/2},
-                {all, fun should_not_add_duplicate/2}
+                {all, fun should_not_add_duplicate/2},
+                {all, fun should_notify_on_config_reload/2},
+                {all, fun should_notify_on_config_reload_flush/2}
             ]
         }
     }.
@@ -706,6 +708,27 @@ should_keep_features_on_config_restart() ->
     ?assertEqual([snek], config:features()),
     with_process_restart(config),
     ?assertEqual([snek], config:features()).
+
+should_notify_on_config_reload(Subscription, {_Apps, Pid}) ->
+    {to_string(Subscription), ?_test(begin
+        ?assertEqual(ok, config:set("section_foo", "key_bar", "any", true)),
+        ?assertEqual({config_change,"section_foo", "key_bar", "any", true}, getmsg(Pid)),
+        ?assertEqual(ok, config:set("section_foo", "key_bar", "not_any", false)),
+        ?assertEqual({config_change,"section_foo", "key_bar", "not_any", false}, getmsg(Pid)),
+        ?assertEqual(ok, config:reload()),
+        ?assertEqual({config_change,"section_foo", "key_bar", "any", true}, getmsg(Pid)),
+        ok
+    end)}.
+
+should_notify_on_config_reload_flush(Subscription, {_Apps, Pid}) ->
+    {to_string(Subscription), ?_test(begin
+        ?assertEqual(ok, config:set("section_foo_temp", "key_bar", "any", false)),
+        ?assertEqual({config_change,"section_foo_temp", "key_bar", "any", false}, getmsg(Pid)),
+        ?assertEqual(ok, config:reload()),
+        ?assertEqual({config_change,"section_foo_temp", "key_bar", deleted, true}, getmsg(Pid)),
+        ok
+    end)}.
+
 
 spawn_config_listener() ->
     Self = self(),
