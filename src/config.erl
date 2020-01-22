@@ -300,17 +300,29 @@ handle_call(reload, _From, Config) ->
     end, dict:new(), Config#config.ini_files),
     % Update ets with anything we just read
     % from disk
-    dict:fold(fun(K, V, _) ->
-        ets:insert(?MODULE, {K, V})
+    dict:fold(fun({Sec, Key} = K, V, _) ->
+        VExisting = get(Sec, Key, V),
+        ets:insert(?MODULE, {K, V}),
+        case V =:= VExisting of
+            true ->
+                ok;
+            false ->
+                couch_log:notice("Reload detected config change ~s.~s = ~p", [Sec, Key, V]),
+                Event = {config_change, Sec, Key, V, true},
+                gen_event:sync_notify(config_event, Event)
+        end
     end, nil, DiskKVs),
     % And remove anything in ets that wasn't
     % on disk.
-    ets:foldl(fun({K, _}, _) ->
+    ets:foldl(fun({{Sec, Key} = K, _}, _) ->
         case dict:is_key(K, DiskKVs) of
             true ->
                 ok;
             false ->
-                ets:delete(?MODULE, K)
+                couch_log:notice("Reload deleting in-memory config ~s.~s", [Sec, Key]),
+                ets:delete(?MODULE, K),
+                Event = {config_change, Sec, Key, deleted, true},
+                gen_event:sync_notify(config_event, Event)
         end
     end, nil, ?MODULE),
     {reply, ok, Config}.
