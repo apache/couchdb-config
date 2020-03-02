@@ -171,20 +171,22 @@ get(Section, Key, Default) when is_list(Section), is_list(Key) ->
 set(Section, Key, Value) ->
     ?MODULE:set(Section, Key, Value, true, nil).
 
+set(Sec, Key, Val, Opts) when is_binary(Sec) and is_binary(Key) ->
+    ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Opts);
 set(Section, Key, Value, Persist) when is_boolean(Persist) ->
-    ?MODULE:set(Section, Key, Value, Persist, nil);
-set(Section, Key, Value, Reason) ->
-    ?MODULE:set(Section, Key, Value, true, Reason).
-
-set(Sec, Key, Val, Persist, Reason) when is_binary(Sec) and is_binary(Key) ->
-    ?MODULE:set(binary_to_list(Sec), binary_to_list(Key), Val, Persist, Reason);
-set(Section, Key, Value, Persist, Reason)
+    ?MODULE:set(Section, Key, Value, #{persist => Persist});
+set(Section, Key, Value, #{} = Opts)
         when is_list(Section), is_list(Key), is_list(Value) ->
-    gen_server:call(?MODULE, {set, Section, Key, Value, Persist, Reason},
-        ?TIMEOUT);
-set(_Sec, _Key, _Val, _Persist, _Reason) ->
+    gen_server:call(?MODULE, {set, Section, Key, Value, Opts}, ?TIMEOUT);
+set(Section, Key, Value, Reason)
+        when is_list(Section), is_list(Key), is_list(Value) ->
+    ?MODULE:set(Section, Key, Value, #{persist => true, reason => Reason});
+set(_Sec, _Key, _Val, _Options) ->
     error(badarg).
 
+set(Section, Key, Value, Persist, Reason)
+        when is_list(Section), is_list(Key), is_list(Value) ->
+    ?MODULE:set(Section, Key, Value, #{persist => Persist, reason => Reason}).
 
 delete(Section, Key) when is_binary(Section) and is_binary(Key) ->
     delete(binary_to_list(Section), binary_to_list(Key));
@@ -242,16 +244,29 @@ terminate(_Reason, _State) ->
 handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
-handle_call({set, Sec, Key, Val, Persist, Reason}, _From, Config) ->
+handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
+    Persist = maps:get(persist, Opts, true),
+    Reason = maps:get(reason, Opts, nil),
+    IsSensitive = maps:get(sensitive, Opts, false),
     case validate_config_update(Sec, Key, Val) of
+        {error, ValidationError} when IsSensitive ->
+            couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
+                             [?MODULE, Sec, Key, Reason]),
+            {reply, {error, ValidationError}, Config};
         {error, ValidationError} ->
             couch_log:error("~p: [~s] ~s = '~s' rejected for reason ~p",
                              [?MODULE, Sec, Key, Val, Reason]),
             {reply, {error, ValidationError}, Config};
         ok ->
             true = ets:insert(?MODULE, {{Sec, Key}, Val}),
-            couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
-                             [?MODULE, Sec, Key, Val, Reason]),
+            case IsSensitive of
+                false ->
+                    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
+                        [?MODULE, Sec, Key, Val, Reason]);
+                true ->
+                    couch_log:notice("~p: [~s] ~s set to '****' for reason ~p",
+                        [?MODULE, Sec, Key, Reason])
+            end,
             ConfigWriteReturn = case {Persist, Config#config.write_filename} of
                 {true, undefined} ->
                     ok;
