@@ -244,30 +244,30 @@ terminate(_Reason, _State) ->
 handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
-handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
-    Persist = maps:get(persist, Opts, true),
-    Reason = maps:get(reason, Opts, nil),
-    IsSensitive = maps:get(sensitive, Opts, false),
-    case validate_config_update(Sec, Key, Val) of
-        {error, ValidationError} when IsSensitive ->
-            couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
-                             [?MODULE, Sec, Key, Reason]),
-            {reply, {error, ValidationError}, Config};
+    handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
+        Persist = maps:get(persist, Opts, true),
+        Reason = maps:get(reason, Opts, nil),
+        IsSensitive = maps:get(sensitive, Opts, false),
+        case validate_config_update(Sec, Key, Val) of
+            {error, ValidationError} when IsSensitive ->
+                couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
+                                 [?MODULE, Sec, Key, Reason]),
+                {reply, {error, ValidationError}, Config};
         {error, ValidationError} ->
             couch_log:error("~p: [~s] ~s = '~s' rejected for reason ~p",
                              [?MODULE, Sec, Key, Val, Reason]),
             {reply, {error, ValidationError}, Config};
         ok ->
-            true = ets:insert(?MODULE, {{Sec, Key}, Val}),
+            true = ets:insert(?MODULE, {{Sec, Key}, Val}),            
             case IsSensitive of
-                false ->
-                    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
-                        [?MODULE, Sec, Key, Val, Reason]);
-                true ->
-                    couch_log:notice("~p: [~s] ~s set to '****' for reason ~p",
-                        [?MODULE, Sec, Key, Reason])
-            end,
-            ConfigWriteReturn = case {Persist, Config#config.write_filename} of
+            false ->
+                couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
+                    [?MODULE, Sec, Key, Val, Reason]);
+            true ->
+                couch_log:notice("~p: [~s] ~s set to '****' for reason ~p",
+                    [?MODULE, Sec, Key, Reason])
+        end,
+        ConfigWriteReturn = case {Persist, Config#config.write_filename} of
                 {true, undefined} ->
                     ok;
                 {true, FileName} ->
@@ -383,8 +383,9 @@ parse_ini_file(IniFile) ->
             ";" ++ _Comment ->
                 {AccSectionName, AccValues};
             Line2 ->
-                case re:split(Line2, "\s?=\s?", [{return, list}]) of
-                [Value] ->
+                MatchResult = re:run(Line2,<<"(.*(\\\\=)?\\S)(\\s?=\\s?)(.*)">>, [{capture,[1,4],list}]),
+                case MatchResult of
+                {match,[""|Value]} ->
                     MultiLineValuePart = case re:run(Line, "^ \\S", []) of
                     {match, _} ->
                         true;
@@ -406,19 +407,18 @@ parse_ini_file(IniFile) ->
                     _ ->
                         {AccSectionName, AccValues}
                     end;
-                [""|_LineValues] -> % line begins with "=", ignore
+                nomatch -> % line begins with "=", ignore
                     {AccSectionName, AccValues};
-                [ValueName|LineValues] -> % yeehaw, got a line!
-                    RemainingLine = config_util:implode(LineValues, "="),
+                {match,[ValueName|LineValues]} -> % yeehaw, got a line
                     % removes comments
-                    case re:split(RemainingLine, " ;|\t;", [{return, list}]) of
+                    case re:split(LineValues, " ;|\t;", [{return, list}]) of
                     [[]] ->
                         % empty line means delete this key
                         ets:delete(?MODULE, {AccSectionName, ValueName}),
                         {AccSectionName, AccValues};
                     [LineValue | _Rest] ->
                         {AccSectionName,
-                            [{{AccSectionName, ValueName}, LineValue} | AccValues]}
+                            [{{AccSectionName, re:replace(ValueName, "\\\\=", "=", [{return,list}])}, LineValue} | AccValues]}
                     end
                 end
             end
