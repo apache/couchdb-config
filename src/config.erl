@@ -244,30 +244,30 @@ terminate(_Reason, _State) ->
 handle_call(all, _From, Config) ->
     Resp = lists:sort((ets:tab2list(?MODULE))),
     {reply, Resp, Config};
-    handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
-        Persist = maps:get(persist, Opts, true),
-        Reason = maps:get(reason, Opts, nil),
-        IsSensitive = maps:get(sensitive, Opts, false),
-        case validate_config_update(Sec, Key, Val) of
-            {error, ValidationError} when IsSensitive ->
-                couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
-                                 [?MODULE, Sec, Key, Reason]),
-                {reply, {error, ValidationError}, Config};
+handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
+    Persist = maps:get(persist, Opts, true),
+    Reason = maps:get(reason, Opts, nil),
+    IsSensitive = maps:get(sensitive, Opts, false),
+    case validate_config_update(Sec, Key, Val) of
+        {error, ValidationError} when IsSensitive ->
+            couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
+                                [?MODULE, Sec, Key, Reason]),
+            {reply, {error, ValidationError}, Config};
         {error, ValidationError} ->
             couch_log:error("~p: [~s] ~s = '~s' rejected for reason ~p",
                              [?MODULE, Sec, Key, Val, Reason]),
             {reply, {error, ValidationError}, Config};
         ok ->
-            true = ets:insert(?MODULE, {{Sec, Key}, Val}),            
+            true = ets:insert(?MODULE, {{Sec, Key}, Val}),
             case IsSensitive of
-            false ->
-                couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
-                    [?MODULE, Sec, Key, Val, Reason]);
-            true ->
-                couch_log:notice("~p: [~s] ~s set to '****' for reason ~p",
-                    [?MODULE, Sec, Key, Reason])
-        end,
-        ConfigWriteReturn = case {Persist, Config#config.write_filename} of
+                false ->
+                    couch_log:notice("~p: [~s] ~s set to ~s for reason ~p",
+                        [?MODULE, Sec, Key, Val, Reason]);
+                true ->
+                    couch_log:notice("~p: [~s] ~s set to '****' for reason ~p",
+                        [?MODULE, Sec, Key, Reason])
+            end,
+            ConfigWriteReturn = case {Persist, Config#config.write_filename} of
                 {true, undefined} ->
                     ok;
                 {true, FileName} ->
