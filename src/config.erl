@@ -383,9 +383,8 @@ parse_ini_file(IniFile) ->
             ";" ++ _Comment ->
                 {AccSectionName, AccValues};
             Line2 ->
-                MatchResult = re:run(Line2,<<"(.*(\\\\=)?\\S)(\\s?=\\s?)(.*)">>, [{capture,[1,4],list}]),
-                case MatchResult of
-                {match,[""|Value]} ->
+                case re:split(Line2, "\s?=\s?", [{return, list}]) of
+                [Value] ->
                     MultiLineValuePart = case re:run(Line, "^ \\S", []) of
                     {match, _} ->
                         true;
@@ -407,18 +406,19 @@ parse_ini_file(IniFile) ->
                     _ ->
                         {AccSectionName, AccValues}
                     end;
-                nomatch -> % line begins with "=", ignore
+                [""|_LineValues] -> % line begins with "=", ignore
                     {AccSectionName, AccValues};
-                {match,[ValueName|LineValues]} -> % yeehaw, got a line
+                [ValueName|LineValues] -> % yeehaw, got a line!
+                    RemainingLine = config_util:implode(LineValues, "="),
                     % removes comments
-                    case re:split(LineValues, " ;|\t;", [{return, list}]) of
+                    case re:split(RemainingLine, " ;|\t;", [{return, list}]) of
                     [[]] ->
                         % empty line means delete this key
                         ets:delete(?MODULE, {AccSectionName, ValueName}),
                         {AccSectionName, AccValues};
                     [LineValue | _Rest] ->
                         {AccSectionName,
-                            [{{AccSectionName, re:replace(ValueName, "\\\\=", "=", [{return,list}])}, LineValue} | AccValues]}
+                            [{{AccSectionName, ValueName}, LineValue} | AccValues]}
                     end
                 end
             end
