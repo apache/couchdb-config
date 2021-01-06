@@ -9,13 +9,14 @@ sudo: false
 
 addons:
   apt:
+    update: true
     packages:
       - libmozjs185-dev
 
 before_install:
-  - apt-get update && apt-get install -y curl python
+  - sudo apt-get install -y curl python
   - curl -sO https://www.foundationdb.org/downloads/6.2.28/ubuntu/installers/foundationdb-clients_6.2.28-1_amd64.deb
-  - dpkg -i foundationdb-clients_6.2.28-1_amd64.deb
+  - sudo dpkg -i foundationdb-clients_6.2.28-1_amd64.deb
   - git clone --depth 1 https://github.com/apache/couchdb
 
 before_script:
