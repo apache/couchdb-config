@@ -13,7 +13,7 @@ addons:
       - libmozjs185-dev
 
 before_install:
-  - git clone --depth 1 https://github.com/apache/couchdb
+  - git clone --no-single-branch --depth 1 https://github.com/apache/couchdb
 
 before_script:
   - cd couchdb
