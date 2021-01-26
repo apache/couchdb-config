@@ -3,7 +3,10 @@ language: erlang
 otp_release:
   - 21.1
   - 20.3
-  - 19.3
+
+env:
+  - COUCHDB_BRANCH=main
+  - COUCHDB_BRANCH=3.x
 
 sudo: false
 
@@ -17,7 +20,7 @@ before_install:
 
 before_script:
   - cd couchdb
-  - git checkout origin/3.x
+  - git checkout origin/${COUCHDB_BRANCH}
   - ./configure --disable-docs --disable-fauxton
   - cp -r ../!(couchdb) ./src/config
   - make
