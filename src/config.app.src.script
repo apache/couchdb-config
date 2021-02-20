@@ -10,6 +10,15 @@
 % License for the specific language governing permissions and limitations under
 % the License.
 
+ConfigPath = filename:join([os:getenv("COUCHDB_APPS_CONFIG_DIR"), "config.config"]),
+AppEnv = case filelib:is_file(ConfigPath) of
+    true ->
+        {ok, Result} = file:consult(ConfigPath),
+        Result;
+    false ->
+        []
+end.
+
 {application, config, [
     {description, "INI file configuration system for Apache CouchDB"},
     {vsn, git},
@@ -18,5 +27,6 @@
         config_event
     ]},
     {applications, [kernel, stdlib]},
-    {mod, {config_app, []}}
+    {mod, {config_app, []}},
+    {env, AppEnv}
 ]}.
