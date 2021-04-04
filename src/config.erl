@@ -40,6 +40,8 @@
 -export([init/1, terminate/2, code_change/3]).
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 
+-export([is_sensitive/2]).
+
 -define(FEATURES, "features").
 
 -define(TIMEOUT, 30000).
@@ -247,7 +249,7 @@ handle_call(all, _From, Config) ->
 handle_call({set, Sec, Key, Val, Opts}, _From, Config) ->
     Persist = maps:get(persist, Opts, true),
     Reason = maps:get(reason, Opts, nil),
-    IsSensitive = maps:get(sensitive, Opts, false),
+    IsSensitive = is_sensitive(Sec, Key),
     case validate_config_update(Sec, Key, Val) of
         {error, ValidationError} when IsSensitive ->
             couch_log:error("~p: [~s] ~s = '****' rejected for reason ~p",
@@ -322,7 +324,16 @@ handle_call(reload, _From, Config) ->
             true ->
                 ok;
             false ->
-                couch_log:notice("Reload detected config change ~s.~s = ~p", [Sec, Key, V]),
+                case is_sensitive(Sec, Key) of
+                    false ->
+                        couch_log:notice(
+                            "Reload detected config change ~s.~s = ~p",
+                            [Sec, Key, V]);
+                    true ->
+                        couch_log:notice(
+                            "Reload detected config change ~s.~s = '****'",
+                            [Sec, Key])
+                end,
                 Event = {config_change, Sec, Key, V, true},
                 gen_event:sync_notify(config_event, Event)
         end
@@ -354,6 +365,15 @@ handle_info(Info, State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+
+is_sensitive(Section, Key) ->
+    Sensitive = application:get_env(config, sensitive, #{}),
+    case maps:get(Section, Sensitive, false) of
+        all -> true;
+        Fields when is_list(Fields) -> lists:member(Key, Fields);
+        _ -> false
+    end.
 
 
 parse_ini_file(IniFile) ->
