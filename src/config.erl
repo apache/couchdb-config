@@ -31,6 +31,8 @@
 -export([get_float/3, set_float/3, set_float/4]).
 -export([get_boolean/3, set_boolean/3, set_boolean/4]).
 
+-export([to_integer/1, to_boolean/1]).
+
 -export([features/0, enable_feature/1, disable_feature/1]).
 
 -export([listen_for_changes/2]).
