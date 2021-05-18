@@ -90,7 +90,8 @@ to_integer(List) when is_list(List) ->
 to_integer(Int) when is_integer(Int) ->
     Int;
 to_integer(Bin) when is_binary(Bin) ->
-    list_to_integer(binary_to_list(Bin)).
+    list_to_integer(binary_to_list(Bin));
+to_integer(_) -> error(badarg).
 
 get_float(Section, Key, Default) when is_float(Default) ->
     try
@@ -145,7 +146,8 @@ to_boolean(List) when is_list(List) ->
             error(badarg)
     end;
 to_boolean(Bool) when is_boolean(Bool) ->
-    Bool.
+    Bool;
+to_boolean(_) -> error(badarg).
 
 get(Section) when is_binary(Section) ->
     ?MODULE:get(binary_to_list(Section));
