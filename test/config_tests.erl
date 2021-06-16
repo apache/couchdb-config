@@ -39,6 +39,9 @@
 -define(CONFIG_FIXTURE_2,
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_2.ini"])).
 
+-define(CONFIG_FIXTURE_ESCAPING,
+        filename:join([?CONFIG_FIXTURESDIR, "config_tests_escaping.ini"])).
+
 -define(CONFIG_DEFAULT_D,
         filename:join([?CONFIG_FIXTURESDIR, "default.d"])).
 
@@ -92,6 +95,8 @@ setup_config_notifier(Subscription) ->
     Pid = spawn_config_notifier(Subscription),
     {Apps, Pid}.
 
+setup_with_escaped_chars() ->
+    setup(?CONFIG_CHAIN ++ [?CONFIG_FIXTURE_ESCAPING]).
 
 teardown({Apps, Pid}) when is_pid(Pid) ->
     catch exit(Pid, kill),
@@ -133,7 +138,7 @@ config_get_test_() ->
         "Config get tests",
         {
             foreach,
-            fun setup/0,
+            fun setup_with_escaped_chars/0,
             fun teardown/1,
             [
                 fun should_load_all_configs/0,
@@ -142,7 +147,8 @@ config_get_test_() ->
                 fun should_return_custom_default_value_on_missed_option/0,
                 fun should_only_return_default_on_missed_option/0,
                 fun should_fail_to_get_binary_value/0,
-                fun should_return_any_supported_default/0
+                fun should_return_any_supported_default/0,
+                fun should_return_values_from_escaped_keys/0
             ]
         }
     }.
@@ -377,6 +383,9 @@ should_return_undefined_atom_on_missed_option() ->
 should_return_custom_default_value_on_missed_option() ->
     ?assertEqual("bar", config:get("httpd", "foo", "bar")).
 
+should_return_values_from_escaped_keys() ->
+    ?assertEqual("somepass", config:get("admins", "sample=user")),
+    ?assertEqual("somevalue", config:get("jwt_tokens","kid:somekey=")).
 
 should_only_return_default_on_missed_option() ->
     ?assertEqual("0", config:get("httpd", "port", "bar")).
