@@ -30,6 +30,9 @@
 -define(CONFIG_FIXTURESDIR,
         filename:join([?BUILDDIR(), "src", "config", "test", "fixtures"])).
 
+-define(CONFIG_DEFAULT_TEST,
+        filename:join([?CONFIG_FIXTURESDIR, "config_default_test.ini"])).
+
 -define(CONFIG_FIXTURE_1,
         filename:join([?CONFIG_FIXTURESDIR, "config_tests_1.ini"])).
 
@@ -201,20 +204,20 @@ config_override_test_() ->
             fun setup/1,
             fun teardown/2,
             [
-                {{temporary, [?CONFIG_DEFAULT]},
+                {{temporary, [?CONFIG_DEFAULT_TEST]},
                         fun should_ensure_in_defaults/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_1]},
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_FIXTURE_1]},
                         fun should_override_options/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_2]},
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_FIXTURE_2]},
                         fun should_create_new_sections_on_override/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_FIXTURE_1,
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_FIXTURE_1,
                                 ?CONFIG_FIXTURE_2]},
                         fun should_win_last_in_chain/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_DEFAULT_D]},
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_DEFAULT_D]},
                         fun should_read_default_d/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_LOCAL_D]},
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_LOCAL_D]},
                         fun should_read_local_d/2},
-                {{temporary, [?CONFIG_DEFAULT, ?CONFIG_DEFAULT_D,
+                {{temporary, [?CONFIG_DEFAULT_TEST, ?CONFIG_DEFAULT_D,
                                 ?CONFIG_LOCAL_D]},
                         fun should_read_default_and_local_d/2}
             ]
@@ -230,9 +233,9 @@ config_persistent_changes_test_() ->
             fun setup/1,
             fun teardown/2,
             [
-                {{persistent, [?CONFIG_DEFAULT]},
+                {{persistent, [?CONFIG_DEFAULT_TEST]},
                         fun should_write_changes/2},
-                {{temporary, [?CONFIG_DEFAULT]},
+                {{temporary, [?CONFIG_DEFAULT_TEST]},
                         fun should_ensure_default_wasnt_modified/2},
                 {{temporary, [?CONFIG_FIXTURE_TEMP]},
                         fun should_ensure_written_to_last_config_in_chain/2}
