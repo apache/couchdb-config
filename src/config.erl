@@ -414,7 +414,7 @@ parse_ini_file(IniFile) ->
                     case {MultiLineValuePart, AccValues} of
                     {true, [{{_, ValueName}, PrevValue} | AccValuesRest]} ->
                         % remove comment
-                        case re:split(Value, " ;|\t;", [{return, list}]) of
+                        case re:split(Value, "\s+;|\t;", [{return, list}]) of
                         [[]] ->
                             % empty line
                             {AccSectionName, AccValues};
@@ -431,7 +431,7 @@ parse_ini_file(IniFile) ->
                 [ValueName|LineValues] -> % yeehaw, got a line!
                     RemainingLine = config_util:implode(LineValues, "="),
                     % removes comments
-                    case re:split(RemainingLine, " ;|\t;", [{return, list}]) of
+                    case re:split(RemainingLine, "\s+;|\t;", [{return, list}]) of
                     [[]] ->
                         % empty line means delete this key
                         ets:delete(?MODULE, {AccSectionName, ValueName}),
