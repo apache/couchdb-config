@@ -72,3 +72,4 @@ fix_path_list(["."|Rest], Acc) ->
     fix_path_list(Rest, Acc);
 fix_path_list([Dir | Rest], Acc) ->
     fix_path_list(Rest, [Dir | Acc]).
+
