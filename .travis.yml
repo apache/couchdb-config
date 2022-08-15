@@ -1,12 +1,14 @@
+dist: jammy
+
 language: erlang
 
 otp_release:
-  - 24.0
-  - 21.1
+  - 25.0.2
+  - 24.3.1
 
 env:
   - COUCHDB_BRANCH=main
-  - COUCHDB_BRANCH=3.x
+  #- COUCHDB_BRANCH=3.x
 
 sudo: false
 
@@ -14,19 +16,19 @@ addons:
   apt:
     update: true
     packages:
-      - libmozjs185-dev
+      - libmozjs-91-dev
 
 before_install:
-  - sudo apt-get install -y curl python
-  - curl -sO https://www.foundationdb.org/downloads/6.2.28/ubuntu/installers/foundationdb-clients_6.2.28-1_amd64.deb
-  - sudo dpkg -i foundationdb-clients_6.2.28-1_amd64.deb
+#  - sudo apt-get install -y curl python
+#  - curl -sO https://www.foundationdb.org/downloads/6.2.28/ubuntu/installers/foundationdb-clients_6.2.28-1_amd64.deb
+#  - sudo dpkg -i foundationdb-clients_6.2.28-1_amd64.deb
   - git clone --no-single-branch --depth 1 https://github.com/apache/couchdb
 
 
 before_script:
   - cd couchdb
   - git checkout origin/${COUCHDB_BRANCH}
-  - ./configure --disable-docs --disable-fauxton
+  - ./configure --spidermonkey-version 91 --disable-docs --disable-fauxton
   - cp -r ../!(couchdb) ./src/config
   - make
 
