@@ -18,7 +18,7 @@ addons:
     packages:
       - libmozjs-91-dev
 
-#before_install:
+before_install:
 #  - sudo apt-get install -y curl python
 #  - curl -sO https://www.foundationdb.org/downloads/6.2.28/ubuntu/installers/foundationdb-clients_6.2.28-1_amd64.deb
 #  - sudo dpkg -i foundationdb-clients_6.2.28-1_amd64.deb
