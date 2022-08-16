@@ -437,8 +437,9 @@ parse_ini_file(IniFile) ->
                         ets:delete(?MODULE, {AccSectionName, ValueName}),
                         {AccSectionName, AccValues};
                     [LineValue | _Rest] ->
+                        LineValueWithoutLeadTrailWS = string:trim(LineValue),
                         {AccSectionName,
-                            [{{AccSectionName, ValueName}, LineValue} | AccValues]}
+                            [{{AccSectionName, ValueName}, LineValueWithoutLeadTrailWS} | AccValues]}
                     end
                 end
             end
