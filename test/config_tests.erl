@@ -13,16 +13,13 @@
 -module(config_tests).
 -behaviour(config_listener).
 
-
--include_lib("couch/include/couch_eunit.hrl").
--include_lib("couch/include/couch_db.hrl").
-
-
 -export([
     handle_config_change/5,
     handle_config_terminate/3
 ]).
 
+-include_lib("couch/include/couch_eunit.hrl").
+-include_lib("couch/include/couch_db.hrl").
 
 -define(TIMEOUT, 4000).
 -define(RESTART_TIMEOUT_IN_MILLISEC, 3000).
